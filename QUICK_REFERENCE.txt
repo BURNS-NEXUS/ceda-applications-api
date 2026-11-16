@@ -1,0 +1,154 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     CEDA API - QUICK REFERENCE CARD                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📍 PROJECT ROOT: /Users/raps/Documents/hackathons/botswana/ceda-applications-api/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🗂️  DIRECTORY STRUCTURE:
+
+  api/
+  ├── features/              ← NEW: Feature modules
+  │   ├── auth/              ✅ Login, Register, Logout, Me, CSRF
+  │   └── applications/      ⚡ CRUD operations for projects
+  ├── api.py                 ← Router registration (refactored)
+  ├── models.py              ← User model
+  └── ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 AUTH FEATURE: /auth/
+
+  Endpoint                Method   Auth   Input                  Output
+  ───────────────────────────────────────────────────────────────────────────
+  /csrf                   GET      ❌     (none)                 csrfToken
+  /register               POST     ❌     RegisterIn             UserOut (201)
+  /login                  POST     ❌     LoginIn                UserOut
+  /logout                 POST     ✅     (none)                 {"success": true}
+  /me                     GET      ✅     (none)                 UserOut
+
+  Schemas:
+    RegisterIn: email, password, first_name, last_name
+    LoginIn: email, password
+    UserOut: id, email
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 APPLICATIONS FEATURE: /applications/
+
+  Endpoint                Method   Auth   Input               Output
+  ───────────────────────────────────────────────────────────────────────────
+  /                       GET      ✅     (none)              ApplicationOut[]
+  /                       POST     ✅     ApplicationIn       ApplicationOut (201)
+  /{id}                   GET      ✅     (none)              ApplicationOut
+  /{id}                   PUT      ✅     ApplicationIn       ApplicationOut
+  /{id}                   DELETE   ✅     (none)              {"success": true}
+
+  Schemas:
+    ApplicationIn: project_title
+    ApplicationOut: id, project_title
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏥 HEALTH CHECK: /health
+
+  GET /health            Response: {"status": "ok"}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ ESSENTIAL COMMANDS:
+
+  Development:
+    uv run python manage.py runserver        # Start dev server
+    uv run python manage.py check            # Verify setup
+    uv run python manage.py seed             # Create test user
+
+  Database:
+    uv run python manage.py makemigrations   # Create migrations
+    uv run python manage.py migrate          # Apply migrations
+
+  Testing:
+    uv run python manage.py test api         # Run tests
+    uv run python manage.py shell            # Interactive shell
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔑 AUTHENTICATION FLOW:
+
+  1. Get CSRF Token:
+     GET /api/auth/csrf
+
+  2. Register:
+     POST /api/auth/register
+     Body: {email, password, first_name, last_name}
+     Cookie: csrftoken=...
+
+  3. Login:
+     POST /api/auth/login
+     Body: {email, password}
+     ← Response includes: sessionid cookie
+
+  4. Use API:
+     GET /api/auth/me
+     Headers: X-CSRFToken: ...
+     Cookie: sessionid=...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION:
+
+  SUMMARY.md                   ← Start here (overview)
+  FEATURES.md                  ← Full API documentation
+  ORGANIZATION.md              ← Quick reference & structure
+  ARCHITECTURE.md              ← Visual diagrams
+  IMPLEMENTATION_CHECKLIST.md  ← Next steps
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 ADDING A NEW FEATURE:
+
+  1. mkdir -p api/features/my_feature
+  2. Create: __init__.py, schemas.py, router.py
+  3. Update: api/features/__init__.py (export router)
+  4. Update: api/api.py (register router)
+
+  Example:
+    api.add_router("/my-feature", my_feature_router, tags=["my_feature"])
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ KEY FEATURES:
+
+  ✅ Modular architecture (features are independent)
+  ✅ Pydantic schemas (automatic validation)
+  ✅ Session-based auth (Django cookies)
+  ✅ CSRF protection (required headers)
+  ✅ CUID for IDs (globally unique)
+  ✅ Feature template provided (easy to add more)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 CURRENT STATUS:
+
+  ✅ Auth feature: Fully functional
+  ✅ Applications feature: Skeleton ready
+  ✅ Database: User model (Application model needed)
+  ✅ Documentation: Complete
+  ⏳ Next: Implement Application model & endpoints
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 TIPS:
+
+  • All endpoints return JSON
+  • POST/PUT endpoints require: Content-Type: application/json
+  • Protected endpoints need: X-CSRFToken header + sessionid cookie
+  • Use GET /api/health to test connectivity
+  • Use GET /api/auth/csrf to get token before first request
+  • Check IMPLEMENTATION_CHECKLIST.md for detailed next steps
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ready to start? See SUMMARY.md for a complete overview! 🚀
+

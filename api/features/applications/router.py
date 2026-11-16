@@ -1,0 +1,57 @@
+from ninja import Router
+from ninja.errors import HttpError
+
+from .models import Application
+from .schemas import ApplicationIn, ApplicationOut
+
+router = Router()
+
+
+@router.get("/", response=list[ApplicationOut])
+def list_applications(request):
+    """List all applications for the current user."""
+    applications = Application.objects.filter(owner=request.auth)
+    return applications
+
+
+@router.post("/", response={201: ApplicationOut})
+def create_application(request, payload: ApplicationIn):
+    """Create a new application."""
+    application = Application.objects.create(
+        project_title=payload.project_title, owner=request.auth
+    )
+    return application
+
+
+@router.get("/{application_id}", response=ApplicationOut)
+def get_application(request, application_id: str):
+    """Get a specific application."""
+    try:
+        application = Application.objects.get(id=application_id, owner=request.auth)
+        return application
+    except Application.DoesNotExist:
+        raise HttpError(404, "Application not found")
+
+
+@router.put("/{application_id}", response=ApplicationOut)
+def update_application(request, application_id: str, payload: ApplicationIn):
+    """Update an application."""
+    try:
+        application = Application.objects.get(id=application_id, owner=request.auth)
+        application.project_title = payload.project_title
+        application.save()
+        return application
+    except Application.DoesNotExist:
+        raise HttpError(404, "Application not found")
+
+
+@router.delete("/{application_id}", response=dict)
+def delete_application(request, application_id: str):
+    """Delete an application."""
+    try:
+        application = Application.objects.get(id=application_id, owner=request.auth)
+        application.delete()
+        return {"success": True}
+    except Application.DoesNotExist:
+        raise HttpError(404, "Application not found")
+
