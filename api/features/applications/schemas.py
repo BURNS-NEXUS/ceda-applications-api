@@ -29,6 +29,22 @@ class ApplicationIn(Schema):
     email: str
 
 
+class ApplicationPatch(Schema):
+    project_title: str | None = None
+    company_no: str | None = None
+    incorporation_date: date | None = None
+    contact_person: str | None = None
+    telephone: str | None = None
+    business_nature: str | None = None
+    business_location: str | None = None
+    loan_amount: float | None = None
+    email: str | None = None
+
+
 class ApplicationListOut(Schema):
     total: int
     data: list[ApplicationOut]
+
+
+class FeebackAplicationIn(Schema):
+    reason: str

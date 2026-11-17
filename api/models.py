@@ -13,5 +13,3 @@ class User(AbstractUser):
     id = models.CharField(
         primary_key=True, max_length=32, default=generate_cuid, editable=False
     )
-
-

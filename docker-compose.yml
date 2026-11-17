@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_PATH: /data/db.sqlite3
+    volumes:
+      - ceda_data:/data
+
+volumes:
+  ceda_data:

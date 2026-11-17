@@ -3,6 +3,8 @@ from cuid2 import Cuid
 from django.conf import settings
 from django.db import models
 
+from api.features.audit_logs.models import AuditLog
+
 _cuid = Cuid()
 
 
@@ -31,17 +33,82 @@ class Application(fsm.FSMModelMixin, models.Model):
     loan_amount = models.DecimalField(max_digits=10, decimal_places=2)
     email = models.EmailField()
 
+    # internal
+    submission_count = models.IntegerField(default=0)
+
     class Meta:
         ordering = ["-created_at"]  # noqa: RUF012
 
     def __str__(self):
         return self.project_title
 
+    # region State  Transitions
     @fsm.transition(field=state, source="draft", target="submitted")
     def submit(self, **kwargs):
-        """
-        This function may contain side effects,
-        like updating caches, notifying users, etc.
-        The return value will be discarded.
-        """
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'draft' to 'submitted'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "submitted"},
+        )
+        audit_log.save()
         #  We will create a task manager here to prevent one person handling multiple submissions simultaneously.
+
+    @fsm.transition(field=state, source="submitted", target="screening")
+    def begin_screening(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'submitted' to 'screening'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "screening"},
+        )
+        audit_log.save()
+
+    @fsm.transition(field=state, source="submitted", target="feedback")
+    def request_feedback(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'screening' to 'feedback'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "feedback"},
+        )
+        audit_log.save()
+
+    @fsm.transition(field=state, source="feedback", target="submitted")
+    def resubmit(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'feedback' to 'submitted'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "submitted"},
+        )
+        audit_log.save()
+
+    @fsm.transition(field=state, source=["submitted", "screening"], target="ineligible")
+    def make_ineligible(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' to 'ineligible'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "ineligible"},
+        )
+        audit_log.save()
+        # TODO: Send notification to the applicant about ineligibility
+
+    @fsm.transition(field=state, source="screening", target="in_review")
+    def make_eligible(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'screening' to 'in_review'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "in_review"},
+        )
+        audit_log.save()
+
+    # endregion

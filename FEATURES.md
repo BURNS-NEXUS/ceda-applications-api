@@ -54,6 +54,7 @@ class UserOut(Schema):
 Manages user applications with project information.
 
 **Files:**
+- `filters.py` - Query parameters for filtering and pagination
 - `schemas.py` - Pydantic schemas for request/response validation
 - `router.py` - API endpoints
 
@@ -61,11 +62,33 @@ Manages user applications with project information.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/applications/` | Required | List all applications for current user |
+| GET | `/applications/` | Required | List applications visible to the current user |
 | POST | `/applications/` | Required | Create a new application |
 | GET | `/applications/{id}` | Required | Get specific application |
 | PUT | `/applications/{id}` | Required | Update application |
 | DELETE | `/applications/{id}` | Required | Delete application |
+
+The list endpoint accepts non-negative `skip` and `take` query parameters, for
+example `/api/applications/?skip=10&take=10`. `skip` defaults to 0; omitting
+`take` returns all remaining applications. `take=0` returns an empty page.
+The response contains `total`, the number of visible applications before
+pagination and after filtering, and `data`, the requested page. Applications
+are ordered by creation time, then ID, both descending. Offset pagination
+can shift when applications are added or removed between requests.
+
+Search and filtering are optional and can be combined; all filters are ANDed.
+
+- `search` matches a case-insensitive substring in project title, company
+  number, or email (OR across those fields).
+- `status_in` and `status_not_in` accept repeated parameters, for example
+  `?status_in=draft&status_in=submitted`. Status refers to the application's
+  `state`. Supplying both applies inclusion and exclusion together.
+- `created_at`, `updated_at`, `incorporation_date`, and `loan_amount` support
+  the suffixes `_eq`, `_gt`, `_gte`, `_lt`, and `_lte`. For an inclusive
+  between filter, combine `_gte` and `_lte`, for example
+  `?loan_amount_gte=100&loan_amount_lte=500`.
+  Dates use `YYYY-MM-DD`; created and updated timestamps are compared by
+  calendar date in the configured Django time zone. Loan amounts use decimals.
 
 **Schemas:**
 
@@ -80,6 +103,22 @@ class ApplicationOut(Schema):
 
 **Fields:**
 - `project_title` (string) - The title of the application/project
+
+### 3. Audit Logs Feature (`api/features/audit_logs/`)
+
+`GET /api/audit-logs/` lists audit entries for authenticated users in the
+`admin` group. Other authenticated users receive 403.
+
+The endpoint accepts non-negative `skip` and `take` query parameters. `skip`
+defaults to 0; omitting `take` returns all remaining entries, and `take=0`
+returns an empty page. The response has `total` (before pagination) and `data`,
+ordered by creation time and ID, both descending. Offset pagination can shift
+when entries are added or removed.
+
+Each entry includes `id`, `actor_id` (nullable), `action`, `resource_type`,
+`resource_id`, `details`, and `created_at`. Deleting an actor retains the entry
+and clears `actor_id`. This feature provides storage and retrieval only;
+application actions do not automatically create audit entries.
 
 ## Health Check
 
