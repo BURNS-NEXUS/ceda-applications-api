@@ -10,6 +10,12 @@ With Docker and Docker Compose installed, start the API from the project root:
 docker compose up --build
 ```
 
+
+```bash
+docker compose up -d
+docker compose exec api python manage.py seed
+```
+
 The API will be available at http://localhost:8000. Migrations run automatically
 when the container starts, and the SQLite database is kept in a Docker volume
 when the container is stopped or recreated.
