@@ -1,6 +1,6 @@
 ## Prerequisites
-- Windows or linux, preferably linux
-- Python > 3.14 
+- Windows,Mac OS or linux, preferably linux or MacOS
+- Python ~3.13.15 
 
 ## Commands
 ```bash

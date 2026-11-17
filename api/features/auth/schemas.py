@@ -16,3 +16,5 @@ class RegisterIn(Schema):
 class UserOut(Schema):
     id: str
     email: str
+    first_name: str
+    last_name: str

@@ -13,7 +13,9 @@ USERS = {
 
 
 class Command(BaseCommand):
-    help = "Seed the admin and customer roles and users (skips ones that already exist)."
+    help = (
+        "Seed the admin and customer roles and users (skips ones that already exist)."
+    )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -26,7 +28,9 @@ class Command(BaseCommand):
             user = User.objects.filter(username=username).first()
             if user is None:
                 user = User.objects.create_user(
-                    username=username,
+                    username=username
+                    if username == "admin"
+                    else f"{username}@ceda.local",
                     email=f"{username}@ceda.local",
                     password=PASSWORD,
                     is_staff=is_admin,
