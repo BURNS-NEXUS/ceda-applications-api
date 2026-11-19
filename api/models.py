@@ -2,7 +2,9 @@ from cuid2 import Cuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from api.features.audit_logs.models import AuditLog
 from api.features.corporate_details.models import CorporateDetails, ShareHolders
+from api.features.documents.models import ApplicationDocument, DocumentType
 from api.features.evaluations.models import (
     Evaluation,
     EvaluationCriterion,
@@ -36,8 +38,11 @@ class User(AbstractUser):
 
 __all__ = [
     "Address",
+    "ApplicationDocument",
+    "AuditLog",
     "Contact",
     "CorporateDetails",
+    "DocumentType",
     "Employment",
     "Evaluation",
     "EvaluationCriterion",

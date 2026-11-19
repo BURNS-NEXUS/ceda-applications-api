@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 
 from api.features.audit_logs.models import AuditLog
+from .permissions import can_view_all_applications, can_submit_applications
 
 _cuid = Cuid()
 
@@ -47,6 +48,16 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     class Meta:
         ordering = ["-created_at"]  # noqa: RUF012
+        permissions = [  # noqa: RUF012
+            (
+                can_view_all_applications,
+                "Can view application of themselves and that other of applicants",
+            ),
+            (
+                can_submit_applications,
+                "Can submit applications",
+            ),
+        ]
 
     def __str__(self):
         return self.project_title

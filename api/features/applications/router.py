@@ -24,8 +24,8 @@ router = Router()
 @router.get("/", response=ApplicationListOut)
 def list_applications(request, filters: Query[ApplicationFilters]):
     """List all applications for the current user."""
-    groups = list(request.auth.groups.values_list("name", flat=True))
-    if "admin" in groups:
+    # check user permissions
+    if request.user.has_perm("api.can_view_all_applications"):
         applications = Application.objects.all()
     else:
         applications = Application.objects.filter(owner=request.auth)
