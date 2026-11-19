@@ -19,13 +19,11 @@ USERS = {
     "evaluator3": ("evaluator", False),
 }
 
-customer_permissions = [
-    can_submit_applications,
-]
-evaluator_permissions = [can_view_all_applications]
+# Source of truth: each group's permissions will be made to match this exactly.
 role_permission_map = {
-    "customer": customer_permissions,
-    "evaluator": evaluator_permissions,
+    "admin": [],
+    "customer": [can_submit_applications],
+    "evaluator": [can_view_all_applications],
 }
 
 
@@ -33,19 +31,16 @@ def resolve_permissions(perm_names):
     """Turn permission codenames/strings into Permission model instances."""
     resolved = []
     for name in perm_names:
-        # If it's already a Permission instance, keep it
         if isinstance(name, Permission):
             resolved.append(name)
             continue
 
-        # If it's "app_label.codename", split it
         if "." in name:
             app_label, codename = name.split(".", 1)
             qs = Permission.objects.filter(
                 content_type__app_label=app_label, codename=codename
             )
         else:
-            # Otherwise just match by codename
             qs = Permission.objects.filter(codename=name)
 
         perm = qs.first()
@@ -59,30 +54,45 @@ def resolve_permissions(perm_names):
 
 
 class Command(BaseCommand):
-    help = (
-        "Seed the admin and customer roles and users (skips ones that already exist)."
-    )
+    help = "Seed roles, sync their permissions, and create default users."
 
     @transaction.atomic
     def handle(self, *args, **options):
         User = get_user_model()
 
-        for username, (role, is_admin) in USERS.items():
+        # 1. Sync roles + permissions (once per role)
+        groups = {}
+        role_names = set(role_permission_map) | {role for role, _ in USERS.values()}
+
+        for role in sorted(role_names):
             group, created = Group.objects.get_or_create(name=role)
             self.report("role", role, created)
+            groups[role] = group
 
-            # Attach permissions to the GROUP (inherited by all members)
-            for perm in resolve_permissions(role_permission_map.get(role, [])):
-                group.permissions.add(perm)
+            desired = resolve_permissions(role_permission_map.get(role, []))
+            desired_ids = {p.pk for p in desired}
+            current_ids = set(group.permissions.values_list("pk", flat=True))
 
-            user = User.objects.filter(
-                username=username if username == "admin" else f"{username}@ceda.local",
-            ).first()
+            added = desired_ids - current_ids
+            removed = current_ids - desired_ids
+
+            # set() makes the group match `desired` exactly (adds AND removes)
+            group.permissions.set(desired)
+
+            if added or removed:
+                self.stdout.write(
+                    f"  Permissions for '{role}': +{len(added)} added, "
+                    f"-{len(removed)} removed"
+                )
+
+        # 2. Users
+        for username, (role, is_admin) in USERS.items():
+            login = username if username == "admin" else f"{username}@ceda.local"
+
+            user = User.objects.filter(username=login).first()
             if user is None:
                 user = User.objects.create_user(
-                    username=username
-                    if username == "admin"
-                    else f"{username}@ceda.local",
+                    username=login,
                     email=f"{username}@ceda.local",
                     password=PASSWORD,
                     is_staff=is_admin,
@@ -92,8 +102,7 @@ class Command(BaseCommand):
             else:
                 self.report("user", username, False)
 
-            # Idempotent — safe to call even if already a member
-            user.groups.add(group)
+            user.groups.add(groups[role])  # idempotent
 
     def report(self, kind, name, created):
         if created:
