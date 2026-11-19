@@ -93,6 +93,8 @@ class RequiredDocumentOut(DocumentTypeOut):
 class RequiredDocumentListOut(Schema):
     total: int
     data: list[RequiredDocumentOut]
+    all_required_uploaded: bool
+    missing_required: list[str]
 
 
 class DeleteResult(Schema):

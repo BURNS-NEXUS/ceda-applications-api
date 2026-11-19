@@ -5,6 +5,10 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from .permissions import (
+    manage_document_types,
+    view_all_document_types,
+)
 from .validators import (
     DOCUMENT_FILE_TYPE_LABELS,
     allowed_extensions,
@@ -51,11 +55,11 @@ class DocumentType(models.Model):
         verbose_name_plural = "Document types"
         permissions = [  # noqa: RUF012
             (
-                "view_all_document_types",
+                view_all_document_types,
                 "Can view inactive document types",
             ),
             (
-                "manage_document_types",
+                manage_document_types,
                 "Can create, update, and delete document types",
             ),
         ]
@@ -157,8 +161,6 @@ class ApplicationDocument(models.Model):
 
         if self.document_type_id and self.file:
             try:
-                validate_document_file(
-                    self.file, self.document_type.allowed_file_types
-                )
+                validate_document_file(self.file, self.document_type.allowed_file_types)
             except ValidationError as error:
                 raise ValidationError({"file": error.messages}) from error

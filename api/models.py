@@ -2,6 +2,7 @@ from cuid2 import Cuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from api.features.absentees.models import Absentee
 from api.features.audit_logs.models import AuditLog
 from api.features.corporate_details.models import CorporateDetails, ShareHolders
 from api.features.documents.models import ApplicationDocument, DocumentType
@@ -22,6 +23,13 @@ from api.features.references.models import (
     References,
     ReferencesCommercialBankers,
 )
+from api.features.single_types.models import SystemSettings
+from api.features.tasks.models import (
+    ConflictDeclaration,
+    Task,
+    TaskAssignment,
+    TaskRoundRobinState,
+)
 
 _cuid = Cuid()
 
@@ -37,10 +45,12 @@ class User(AbstractUser):
 
 
 __all__ = [
+    "Absentee",
     "Address",
     "ApplicationDocument",
     "AuditLog",
     "Contact",
+    "ConflictDeclaration",
     "CorporateDetails",
     "DocumentType",
     "Employment",
@@ -53,5 +63,9 @@ __all__ = [
     "References",
     "ReferencesCommercialBankers",
     "ShareHolders",
+    "SystemSettings",
+    "Task",
+    "TaskAssignment",
+    "TaskRoundRobinState",
     "User",
 ]

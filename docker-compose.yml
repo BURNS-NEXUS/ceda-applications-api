@@ -7,6 +7,17 @@ services:
       DATABASE_PATH: /data/db.sqlite3
     volumes:
       - ceda_data:/data
+  task-scheduler:
+    build: .
+    restart: unless-stopped
+    command: >
+      sh -c "while true; do python manage.py assign_tasks; sleep 86400; done"
+    environment:
+      DATABASE_PATH: /data/db.sqlite3
+    volumes:
+      - ceda_data:/data
+    depends_on:
+      - api
 
 volumes:
   ceda_data:

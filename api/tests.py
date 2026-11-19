@@ -1,11 +1,21 @@
 from datetime import date, datetime, timedelta, timezone as datetime_timezone
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.utils import timezone
 
 from api.features.applications.models import Application
+from api.features.applications.permissions import can_view_all_applications
+from api.features.documents.models import ApplicationDocument, DocumentType
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+
+def grant_permissions(user, *codenames):
+    permissions = Permission.objects.filter(
+        content_type__app_label="api", codename__in=codenames
+    )
+    user.user_permissions.add(*permissions)
 
 
 class ApplicationPaginationTests(TestCase):
@@ -16,6 +26,7 @@ class ApplicationPaginationTests(TestCase):
         cls.other_user = User.objects.create_user(username="other")
         cls.admin = User.objects.create_user(username="admin")
         cls.admin.groups.add(Group.objects.create(name="admin"))
+        grant_permissions(cls.admin, can_view_all_applications)
 
         for index in range(25):
             Application.objects.create(
@@ -91,6 +102,65 @@ class ApplicationPaginationTests(TestCase):
         )
 
 
+class ApplicationSubmissionDocumentTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.user = User.objects.create_user(username="submission-customer")
+        grant_permissions(cls.user, "can_submit_applications")
+        cls.application = Application.objects.create(
+            owner=cls.user,
+            project_title="Submission application",
+            company_no="SUB-1",
+            incorporation_date=date(2025, 1, 1),
+            contact_person="Applicant",
+            telephone="71000000",
+            business_nature="Retail",
+            business_location="Gaborone",
+            loan_amount="100000.00",
+            email="submission@example.com",
+        )
+        cls.required_type = DocumentType.objects.create(
+            name="Submission identity",
+            allowed_file_types=["pdf"],
+            is_required=True,
+        )
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_submission_fails_when_required_document_is_missing(self):
+        response = self.client.post(
+            f"/api/applications/{self.application.id}/wf/submit"
+        )
+
+        self.assertEqual(response.status_code, 422, response.content)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.state, "draft")
+        self.assertEqual(self.application.submission_count, 0)
+        self.assertIn("Submission identity", response.json()["detail"])
+
+    def test_submission_succeeds_when_required_document_is_uploaded(self):
+        ApplicationDocument.objects.create(
+            application=self.application,
+            document_type=self.required_type,
+            file=SimpleUploadedFile(
+                "identity.pdf",
+                b"%PDF-1.4 identity",
+                content_type="application/pdf",
+            ),
+        )
+
+        response = self.client.post(
+            f"/api/applications/{self.application.id}/wf/submit"
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.state, "verification")
+        self.assertEqual(self.application.submission_count, 1)
+
+
 class ApplicationFilterTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -99,6 +169,7 @@ class ApplicationFilterTests(TestCase):
         cls.other_user = User.objects.create_user(username="filter-other")
         cls.admin = User.objects.create_user(username="filter-admin")
         cls.admin.groups.add(Group.objects.create(name="admin"))
+        grant_permissions(cls.admin, can_view_all_applications)
 
         for index, owner in enumerate((cls.user, cls.user, cls.user, cls.other_user)):
             app = Application.objects.create(

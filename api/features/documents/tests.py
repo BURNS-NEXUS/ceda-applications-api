@@ -10,6 +10,7 @@ from django.test import TestCase, override_settings
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 
 from api.features.applications.models import Application
+from api.features.tasks.models import Task, TaskAssignment
 
 from .models import ApplicationDocument, DocumentType
 
@@ -66,6 +67,17 @@ class ApplicationDocumentTests(TestCase):
             business_location="Gaborone",
             loan_amount="100000.00",
             email="applicant@example.com",
+        )
+        Application.objects.filter(pk=cls.application.pk).update(state="verification")
+        cls.application.refresh_from_db()
+        cls.verification_task = Task.objects.create(
+            application=cls.application,
+            task_type=Task.Type.VERIFICATION,
+            status=Task.Status.ASSIGNED,
+        )
+        TaskAssignment.objects.create(
+            task=cls.verification_task,
+            employee=cls.reviewer,
         )
         cls.other_application = Application.objects.create(
             owner=cls.other_user,
@@ -185,16 +197,31 @@ class ApplicationDocumentTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        required = {item["id"]: item for item in response.json()["data"]}
-        self.assertIn(self.pdf_type.id, required)
-        self.assertIn(self.image_type.id, required)
-        self.assertNotIn(self.optional_type.id, required)
-        self.assertNotIn(self.inactive_type.id, required)
-        self.assertTrue(required[self.pdf_type.id]["uploaded"])
+        progress = response.json()
+        document_types = {item["id"]: item for item in progress["data"]}
+        self.assertIn(self.pdf_type.id, document_types)
+        self.assertIn(self.image_type.id, document_types)
+        self.assertIn(self.optional_type.id, document_types)
+        self.assertNotIn(self.inactive_type.id, document_types)
+        self.assertFalse(progress["all_required_uploaded"])
+        self.assertIn(self.image_type.name, progress["missing_required"])
+        self.assertTrue(document_types[self.pdf_type.id]["uploaded"])
         self.assertEqual(
-            required[self.pdf_type.id]["document_id"], created["id"]
+            document_types[self.pdf_type.id]["document_id"], created["id"]
         )
-        self.assertFalse(required[self.image_type.id]["uploaded"])
+        self.assertFalse(document_types[self.image_type.id]["uploaded"])
+
+    def test_all_required_documents_uploaded_progress_is_true(self):
+        self._upload(document_type=self.pdf_type)
+        self._upload(document_type=self.image_type)
+
+        response = self.client.get(
+            f"/api/applications/{self.application.id}/documents/required"
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()["all_required_uploaded"])
+        self.assertEqual(response.json()["missing_required"], [])
 
     def test_patch_description_and_file_replacement_resets_decision(self):
         created = self._upload().json()

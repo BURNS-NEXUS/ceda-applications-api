@@ -5,7 +5,13 @@ from django.db import models
 
 from api.features.audit_logs.models import AuditLog
 
-from .permissions import can_submit_applications, can_view_all_applications
+from .permissions import (
+    can_adjudicate_applications,
+    can_evaluate_applications,
+    can_submit_applications,
+    can_verify_applications,
+    can_view_all_applications,
+)
 
 _cuid = Cuid()
 
@@ -58,40 +64,52 @@ class Application(fsm.FSMModelMixin, models.Model):
                 can_submit_applications,
                 "Can submit applications",
             ),
+            (
+                can_verify_applications,
+                "Can verify applications",
+            ),
+            (
+                can_adjudicate_applications,
+                "Can adjudicate applications",
+            ),
+            (
+                can_evaluate_applications,
+                "Can evaluate applications",
+            ),
         ]
 
     def __str__(self):
         return self.project_title
 
     # region State  Transitions
-    @fsm.transition(field=state, source="draft", target="submitted")
+    @fsm.transition(field=state, source="draft", target="verification")
     def submit(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
-            action=f"Changed state of '{self.project_title}' from 'draft' to 'submitted'",
+            action=f"Changed state of '{self.project_title}' from 'draft' to 'verification'",
             resource_type="Application",
             resource_id=self.id,
-            details={"state": "submitted"},
+            details={"state": "verification"},
         )
         audit_log.save()
         #  We will create a task manager here to prevent one person handling multiple submissions simultaneously.
 
-    @fsm.transition(field=state, source="submitted", target="screening")
+    @fsm.transition(field=state, source="verification", target="evaluation")
     def begin_screening(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
-            action=f"Changed state of '{self.project_title}' from 'submitted' to 'screening'",
+            action=f"Changed state of '{self.project_title}' from 'verification' to 'evaluation'",
             resource_type="Application",
             resource_id=self.id,
-            details={"state": "screening"},
+            details={"state": "evaluation"},
         )
         audit_log.save()
 
-    @fsm.transition(field=state, source="submitted", target="feedback")
+    @fsm.transition(field=state, source="verification", target="feedback")
     def request_feedback(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
-            action=f"Changed state of '{self.project_title}' from 'screening' to 'feedback'",
+            action=f"Changed state of '{self.project_title}' from 'verification' to 'feedback'",
             resource_type="Application",
             resource_id=self.id,
             details={"state": "feedback"},
@@ -109,7 +127,7 @@ class Application(fsm.FSMModelMixin, models.Model):
         )
         audit_log.save()
 
-    @fsm.transition(field=state, source=["submitted", "screening"], target="ineligible")
+    @fsm.transition(field=state, source="evaluation", target="ineligible")
     def make_ineligible(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
@@ -121,14 +139,14 @@ class Application(fsm.FSMModelMixin, models.Model):
         audit_log.save()
         # TODO: Send notification to the applicant about ineligibility
 
-    @fsm.transition(field=state, source="screening", target="in_review")
+    @fsm.transition(field=state, source="evaluation", target="adjudication")
     def make_eligible(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
-            action=f"Changed state of '{self.project_title}' from 'screening' to 'in_review'",
+            action=f"Changed state of '{self.project_title}' from 'evaluation' to 'adjudication'",
             resource_type="Application",
             resource_id=self.id,
-            details={"state": "in_review"},
+            details={"state": ""},
         )
         audit_log.save()
 

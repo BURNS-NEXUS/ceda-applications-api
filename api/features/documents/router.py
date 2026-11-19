@@ -11,6 +11,8 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
 from api.features.applications.models import Application
+from api.features.tasks.models import Task
+from api.features.tasks.services import is_assigned
 
 from .models import ApplicationDocument, DocumentType
 from .schemas import (
@@ -23,6 +25,7 @@ from .schemas import (
     DocumentTypePatch,
     RequiredDocumentListOut,
 )
+from .services import document_upload_progress
 from .validators import validate_document_file
 
 logger = logging.getLogger(__name__)
@@ -220,9 +223,7 @@ def create_document_type(request, payload: DocumentTypeIn):
     summary="Update a document type",
 )
 @csrf_exempt
-def update_document_type(
-    request, document_type_id: str, payload: DocumentTypePatch
-):
+def update_document_type(request, document_type_id: str, payload: DocumentTypePatch):
     """Update a document type. Requires ``api.manage_document_types``."""
     _require_perm(request, PERM_MANAGE_DOCUMENT_TYPES)
 
@@ -302,35 +303,14 @@ def list_documents(request, application_id: str):
     summary="List required document types and upload progress",
 )
 def list_required_documents(request, application_id: str):
-    """Return required document types with an ``uploaded`` flag for the application."""
+    """Return all active document types and required-document upload progress."""
     application = _get_application(
         request,
         application_id,
         PERM_VIEW_ALL_APPLICATION_DOCUMENTS,
         PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
     )
-    uploaded = {
-        document.document_type_id: document
-        for document in application.documents.all()
-    }
-    document_types = DocumentType.objects.filter(is_required=True, is_active=True)
-    data = []
-    for document_type in document_types:
-        document = uploaded.get(document_type.id)
-        data.append(
-            {
-                "id": document_type.id,
-                "name": document_type.name,
-                "description": document_type.description,
-                "allowed_file_types": document_type.allowed_file_types,
-                "is_required": document_type.is_required,
-                "is_active": document_type.is_active,
-                "uploaded": document is not None,
-                "document_id": document.id if document else None,
-                "status": document.status if document else None,
-            }
-        )
-    return {"total": len(data), "data": data}
+    return document_upload_progress(application)
 
 
 @router.get(
@@ -502,6 +482,17 @@ def decide_document(
 
     try:
         application = Application.objects.get(id=application_id)
+        verification_task = (
+            Task.objects.filter(
+                application=application,
+                task_type=Task.Type.VERIFICATION,
+                status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if not is_assigned(verification_task, request.auth):
+            raise HttpError(403, "Verification task is not assigned to you.")
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")
     document = _get_document(request, application, document_id)
@@ -513,9 +504,7 @@ def decide_document(
     document.status = payload.status
     document.reason = reason
     document.rejected_by = (
-        request.auth
-        if payload.status == ApplicationDocument.Status.REJECTED
-        else None
+        request.auth if payload.status == ApplicationDocument.Status.REJECTED else None
     )
     document.decision_on = timezone.now()
     document.save()

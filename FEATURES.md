@@ -120,6 +120,30 @@ Each entry includes `id`, `actor_id` (nullable), `action`, `resource_type`,
 and clears `actor_id`. This feature provides storage and retrieval only;
 application actions do not automatically create audit entries.
 
+### 4. Single Types Feature (`api/features/single_types/`)
+
+Stores application-wide configuration in a singleton `SystemSettings` model.
+Exactly one row exists, always with `pk=1`; `SystemSettings.load()` creates it
+with defaults on first use, `save()` forces `pk=1`, and `delete()` is a no-op.
+
+| Field | Type | Default | Validation |
+| --- | --- | --- | --- |
+| `site_name` | string | `"My App"` | 1–100 characters |
+| `maintenance_mode` | boolean | `false` | — |
+| `evaluators_per_application` | integer | `2` | Minimum `1` |
+
+**Endpoints:**
+
+| Method | Path | Auth / permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/settings` | Authenticated | Return current settings, creating defaults on first call |
+| PATCH | `/api/settings` | `api.change_systemsettings` | Partially update settings, returning the full object |
+
+`PATCH` only changes the fields present in the body; omitted fields are
+preserved. Invalid values return `422`, a missing permission returns `403`, and
+unauthenticated requests return `401`. All fields carry OpenAPI descriptions,
+examples, and constraints, so the generated schema documents them fully.
+
 ## Health Check
 
 A global health check endpoint is available:

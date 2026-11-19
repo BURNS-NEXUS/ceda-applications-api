@@ -43,6 +43,7 @@ This API uses a **feature-based architecture** where each feature is a self-cont
 - **Auth** (`api/features/auth/`) - User registration, login, and authentication
 - **Applications** (`api/features/applications/`) - Project applications with field `project_title`
 - **Documents** (`api/features/documents/`) - Admin-managed document types and applicant uploads with review decisions
+- **Single types** (`api/features/single_types/`) - Singleton application settings such as site name and maintenance mode
 
 See [FEATURES.md](./FEATURES.md) for detailed API documentation.
 
@@ -64,6 +65,65 @@ permissions, including permissions granted directly or through groups:
 ```
 
 Use this endpoint to decide which management actions to show in a client.
+
+## System settings (single types)
+
+Application-wide configuration is stored as a **singleton**: exactly one
+`SystemSettings` row, always with primary key `1`. `SystemSettings.load()`
+creates the row with defaults the first time it is requested and always returns
+that same record. Saving forces `pk=1`, and deleting the singleton is a no-op.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `site_name` | string | `"My App"` | Public name of the application, 1–100 characters |
+| `maintenance_mode` | boolean | `false` | When true, clients show a maintenance notice |
+| `evaluators_per_application` | integer | `2` | Evaluators assigned per application, minimum `1` |
+
+Future settings can be added as model fields; the two endpoints keep working.
+
+### API endpoints
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/settings` | Any authenticated user | Return the current settings (creating defaults on first call) |
+| PATCH | `/api/settings` | `api.change_systemsettings` | Partially update settings and return the full object |
+
+`PATCH` is a partial update: only the fields present in the request body change.
+Omitted fields keep their current values. An empty body (`{}`) is valid and
+returns the current settings unchanged.
+
+Only the Django permission `api.change_systemsettings` is required to update
+settings. No staff status, group, or role is needed — assign the permission
+directly to a user in **Admin → Users → User permissions** (or through a group).
+Superusers have it automatically. Reading settings only requires
+authentication, so any signed-in client can display the site name and respect
+maintenance mode.
+
+Request and response example:
+
+```bash
+# Read the current settings
+curl http://localhost:8000/api/settings -b cookies.txt
+
+# Update only maintenance mode (other fields are preserved)
+curl -X PATCH http://localhost:8000/api/settings \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt \
+  -d '{"maintenance_mode": true}'
+```
+
+```json
+{
+  "site_name": "My App",
+  "maintenance_mode": true,
+  "evaluators_per_application": 2
+}
+```
+
+`PATCH` returns `422` when a value is invalid, for example
+`"evaluators_per_application": 0`, a blank `site_name`, or a non-boolean
+`maintenance_mode`. A user without `api.change_systemsettings` receives `403`.
+Unauthenticated requests receive `401`.
 
 ## Application documents
 

@@ -6,9 +6,12 @@ from ninja.errors import HttpError
 from ninja.security import django_auth
 
 from api.features.clarifications.models import Clarification
+from api.features.documents.services import document_upload_progress
+from api.features.tasks.services import ensure_task_for_application
 
 from .filters import ApplicationFilters
 from .models import Application
+from .permissions import can_submit_applications, can_view_all_applications
 from .schemas import (
     ApplicationDetailOut,
     ApplicationIn,
@@ -17,8 +20,6 @@ from .schemas import (
     ApplicationPatch,
     FeedbackApplicationIn,
 )
-from .permissions import can_submit_applications, can_view_all_applications
-
 
 router = Router()
 
@@ -26,12 +27,13 @@ router = Router()
 @router.get("/", response=ApplicationListOut)
 def list_applications(request, filters: Query[ApplicationFilters]):
     """List all applications for the current user."""
-    # check user permissions
-    if request.user.has_perm(f"api.{can_view_all_applications}"):
+    if filters.assigned_to_me:  # noqa: SIM114
+        applications = Application.objects.all()
+    elif request.user.has_perm(f"api.{can_view_all_applications}"):
         applications = Application.objects.all()
     else:
         applications = Application.objects.filter(owner=request.auth)
-    applications = filters.apply(applications)
+    applications = filters.apply(applications, request.auth)
     total = applications.count()
     applications = applications.order_by("-created_at", "-id")
     stop = filters.skip + filters.take if filters.take is not None else None
@@ -63,7 +65,17 @@ def get_application(request, application_id: str):
             "nextofkin_set",
             "evaluations__scores",
             "clarifications",
-        ).get(id=application_id, owner=request.auth)
+        ).filter(id=application_id)
+        is_owner = application.filter(owner=request.auth).exists()
+        can_view_all = request.auth.has_perm(f"api.{can_view_all_applications}")
+        is_assigned = application.filter(
+            tasks__assignments__employee=request.auth,
+            tasks__assignments__is_active=True,
+            tasks__status__in=["pending", "assigned"],
+        ).exists()
+        if not (is_owner or can_view_all or is_assigned):
+            raise Application.DoesNotExist
+        application = application.distinct().get()
         return {
             **{
                 field: getattr(application, field)
@@ -162,6 +174,10 @@ def delete_application(request, application_id: str):
     response=ApplicationOut,
     auth=django_auth,
     tags=["Application workflows"],
+    description=(
+        "Submit an application from draft state. The application must be in a state that allows submission.\n\n"
+        "Requires authentication. \n"
+    ),
 )
 @csrf_exempt
 def submit_application(request, application_id: str):
@@ -169,11 +185,20 @@ def submit_application(request, application_id: str):
     try:
         application = Application.objects.get(id=application_id, owner=request.auth)
         application.submission_count += 1
-
         if not fsm.can_proceed(application.submit):
             raise PermissionDenied
+        if not request.user.has_perm(f"api.{can_submit_applications}"):
+            raise PermissionDenied
+        document_progress = document_upload_progress(application)
+        if not document_progress["all_required_uploaded"]:
+            raise HttpError(
+                422,
+                "All required documents must be uploaded before submission. "
+                f"Missing: {', '.join(document_progress['missing_required'])}.",
+            )
         application.submit()
         application.save()
+        ensure_task_for_application(application)
         return application
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")
@@ -182,7 +207,7 @@ def submit_application(request, application_id: str):
     except PermissionDenied:
         raise HttpError(
             422,
-            "Submission failed: Application may be in a state that does not allow submission.",
+            "Submission failed: You do not have permission to submit this application.",
         )
 
 
@@ -201,8 +226,16 @@ def resubmit_application(request, application_id: str):
 
         if not fsm.can_proceed(application.resubmit):
             raise PermissionDenied
+        document_progress = document_upload_progress(application)
+        if not document_progress["all_required_uploaded"]:
+            raise HttpError(
+                422,
+                "All required documents must be uploaded before resubmission. "
+                f"Missing: {', '.join(document_progress['missing_required'])}.",
+            )
         application.resubmit()
         application.save()
+        ensure_task_for_application(application)
         return application
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")

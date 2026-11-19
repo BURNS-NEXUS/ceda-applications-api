@@ -14,6 +14,7 @@ class ApplicationFilters(Schema):
     search: str | None = None
     status_in: list[str] | None = None
     status_not_in: list[str] | None = None
+    assigned_to_me: bool = False
 
     created_at_eq: date | None = None
     created_at_gt: date | None = None
@@ -36,7 +37,17 @@ class ApplicationFilters(Schema):
     loan_amount_lt: Decimal | None = None
     loan_amount_lte: Decimal | None = None
 
-    def apply(self, applications: QuerySet[Application]) -> QuerySet[Application]:
+    def apply(
+        self,
+        applications: QuerySet[Application],
+        user=None,
+    ) -> QuerySet[Application]:
+        if self.assigned_to_me:
+            applications = applications.filter(
+                tasks__assignments__employee=user,
+                tasks__assignments__is_active=True,
+                tasks__status__in=["pending", "assigned"],
+            )
         if self.search is not None:
             applications = applications.filter(
                 Q(project_title__icontains=self.search)
@@ -59,4 +70,4 @@ class ApplicationFilters(Schema):
                     applications = applications.filter(
                         **{f"{lookup_field}__{lookup}": value}
                     )
-        return applications
+        return applications.distinct()

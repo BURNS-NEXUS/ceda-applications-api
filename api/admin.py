@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 
+from .features.absentees.models import Absentee
 from .features.applications.models import Application
 from .features.audit_logs.models import AuditLog
 from .features.clarifications.models import Clarification
@@ -26,6 +27,13 @@ from .features.references.models import (
     References,
     ReferencesCommercialBankers,
 )
+from .features.single_types.models import SystemSettings
+from .features.tasks.models import (
+    ConflictDeclaration,
+    Task,
+    TaskAssignment,
+    TaskRoundRobinState,
+)
 from .models import User
 
 
@@ -43,9 +51,7 @@ class DocumentTypeAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
-            self.initial["allowed_file_types"] = (
-                self.instance.allowed_file_types or []
-            )
+            self.initial["allowed_file_types"] = self.instance.allowed_file_types or []
 
     def clean_allowed_file_types(self):
         return list(self.cleaned_data["allowed_file_types"])
@@ -151,6 +157,63 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_display = ("id", "actor", "action", "resource_type", "created_at")
     list_filter = ("resource_type", "created_at")
     search_fields = ("action", "resource_type", "resource_id", "actor__username")
+
+
+class AbsenteeAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "leave_type",
+        "start_date",
+        "end_date",
+        "is_on_leave",
+        "updated_at",
+    )
+    list_filter = ("leave_type",)
+    search_fields = ("user__username", "user__email")
+
+
+class TaskAssignmentInline(admin.TabularInline):
+    model = TaskAssignment
+    extra = 0
+    autocomplete_fields = ("employee",)
+    readonly_fields = ("created_at", "updated_at", "unassigned_at")
+
+
+class TaskAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "application",
+        "task_type",
+        "status",
+        "active_assignee_count",
+        "created_at",
+    )
+    list_filter = ("task_type", "status", "created_at")
+    search_fields = (
+        "id",
+        "application__id",
+        "application__project_title",
+        "assignments__employee__username",
+    )
+    readonly_fields = ("created_at", "updated_at")
+    inlines = (TaskAssignmentInline,)
+
+    @admin.display(description="Active assignees")
+    def active_assignee_count(self, obj):
+        return obj.assignments.filter(is_active=True).count()
+
+
+class ConflictDeclarationAdmin(admin.ModelAdmin):
+    list_display = ("id", "task", "employee", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("task__id", "employee__username", "reason", "declaration")
+    readonly_fields = ("created_at", "updated_at")
+
+
+class TaskRoundRobinStateAdmin(admin.ModelAdmin):
+    list_display = ("task_type", "last_employee_id", "updated_at")
+    readonly_fields = ("updated_at",)
 
 
 class AddressAdmin(admin.ModelAdmin):
@@ -306,6 +369,16 @@ class ReferencesCommercialBankersAdmin(admin.ModelAdmin):
     )
 
 
+class SystemSettingsAdmin(admin.ModelAdmin):
+    fields = ("site_name", "maintenance_mode", "evaluators_per_application")
+
+    def has_add_permission(self, request):
+        return not SystemSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 class ShareHoldersAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -326,6 +399,10 @@ class ShareHoldersAdmin(admin.ModelAdmin):
 
 
 admin.site.register(User, UserAdmin)
+admin.site.register(Absentee, AbsenteeAdmin)
+admin.site.register(Task, TaskAdmin)
+admin.site.register(ConflictDeclaration, ConflictDeclarationAdmin)
+admin.site.register(TaskRoundRobinState, TaskRoundRobinStateAdmin)
 admin.site.register(Application, ApplicationAdmin)
 admin.site.register(ApplicationDocument, ApplicationDocumentAdmin)
 admin.site.register(DocumentType, DocumentTypeAdmin)
@@ -344,3 +421,4 @@ admin.site.register(PersonalDetails, PersonalDetailsAdmin)
 admin.site.register(References, ReferencesAdmin)
 admin.site.register(ReferencesCommercialBankers, ReferencesCommercialBankersAdmin)
 admin.site.register(ShareHolders, ShareHoldersAdmin)
+admin.site.register(SystemSettings, SystemSettingsAdmin)

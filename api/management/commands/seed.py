@@ -4,8 +4,22 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from api.features.applications.permissions import (
+    can_adjudicate_applications,
+    can_evaluate_applications,
     can_submit_applications,
+    can_verify_applications,
     can_view_all_applications,
+)
+from api.features.documents.permissions import (
+    manage_all_application_documents,
+    manage_document_types,
+    review_application_document,
+    view_all_application_documents,
+    view_all_document_types,
+)
+from api.features.tasks.permissions import (
+    can_assign_supervisor,
+    can_supervise_tasks,
 )
 
 PASSWORD = "ceda@321"
@@ -17,13 +31,37 @@ USERS = {
     "evaluator1": ("evaluator", False),
     "evaluator2": ("evaluator", False),
     "evaluator3": ("evaluator", False),
+    "verifier1": ("verification", False),
+    "verifier2": ("verification", False),
+    "verifier3": ("verification", False),
+    "adjudicator": ("adjudicator", False),
+    "adjudicator1": ("adjudicator", False),
+    "adjudicator2": ("adjudicator", False),
+    "master": ("webmaster", False),
 }
 
 # Source of truth: each group's permissions will be made to match this exactly.
 role_permission_map = {
-    "admin": [],
+    "admin": [can_assign_supervisor],
     "customer": [can_submit_applications],
-    "evaluator": [can_view_all_applications],
+    "evaluator": [can_evaluate_applications],
+    "verification": [can_verify_applications, can_view_all_applications],
+    "supervisor": [can_supervise_tasks],
+    "adjudicator": [can_adjudicate_applications],
+    "webmaster": [
+        can_assign_supervisor,
+        can_supervise_tasks,
+        can_adjudicate_applications,
+        can_evaluate_applications,
+        can_submit_applications,
+        can_verify_applications,
+        can_view_all_applications,
+        view_all_document_types,
+        manage_document_types,
+        view_all_application_documents,
+        manage_all_application_documents,
+        review_application_document,
+    ],
 }
 
 

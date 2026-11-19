@@ -1,0 +1,5 @@
+view_all_document_types = "view_all_document_types"
+manage_document_types = "manage_document_types"
+view_all_application_documents = "view_all_application_documents"
+manage_all_application_documents = "manage_all_application_documents"
+review_application_document = "review_application_document"

@@ -17,3 +17,23 @@ class BaseModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class SingletonModel(models.Model):
+    """Base model that stores exactly one row, always with primary key 1."""
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Singleton rows are configuration and should never be removed.
+        return None
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

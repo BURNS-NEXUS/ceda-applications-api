@@ -1,3 +1,4 @@
+from .absentees.router import router as absentees_router
 from .applications.router import router as applications_router
 from .audit_logs.router import router as audit_logs_router
 from .auth.me_router import router as auth_me_router
@@ -8,8 +9,11 @@ from .documents.router import router as documents_router
 from .financial_details.router import router as financial_details_router
 from .personal_details.router import router as personal_details_router
 from .references.router import router as references_router
+from .single_types.router import router as single_types_router
+from .tasks.router import router as tasks_router
 
 __all__ = [
+    "absentees_router",
     "applications_router",
     "audit_logs_router",
     "auth_me_router",
@@ -20,4 +24,6 @@ __all__ = [
     "financial_details_router",
     "personal_details_router",
     "references_router",
+    "single_types_router",
+    "tasks_router",
 ]
