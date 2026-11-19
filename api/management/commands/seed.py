@@ -2,9 +2,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand
 from django.db import transaction
+
 from api.features.applications.permissions import (
-    can_view_all_applications,
     can_submit_applications,
+    can_view_all_applications,
 )
 
 PASSWORD = "ceda@321"
@@ -19,11 +20,12 @@ USERS = {
 }
 
 customer_permissions = [
-    can_view_all_applications,
     can_submit_applications,
 ]
+evaluator_permissions = [can_view_all_applications]
 role_permission_map = {
     "customer": customer_permissions,
+    "evaluator": evaluator_permissions,
 }
 
 

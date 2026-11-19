@@ -4,7 +4,8 @@ from django.conf import settings
 from django.db import models
 
 from api.features.audit_logs.models import AuditLog
-from .permissions import can_view_all_applications, can_submit_applications
+
+from .permissions import can_submit_applications, can_view_all_applications
 
 _cuid = Cuid()
 

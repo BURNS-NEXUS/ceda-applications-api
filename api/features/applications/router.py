@@ -17,6 +17,8 @@ from .schemas import (
     ApplicationPatch,
     FeedbackApplicationIn,
 )
+from .permissions import can_submit_applications, can_view_all_applications
+
 
 router = Router()
 
@@ -25,7 +27,7 @@ router = Router()
 def list_applications(request, filters: Query[ApplicationFilters]):
     """List all applications for the current user."""
     # check user permissions
-    if request.user.has_perm("api.can_view_all_applications"):
+    if request.user.has_perm(f"api.{can_view_all_applications}"):
         applications = Application.objects.all()
     else:
         applications = Application.objects.filter(owner=request.auth)

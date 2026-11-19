@@ -5,6 +5,10 @@ from ninja.errors import HttpError
 from api.features.applications.models import Application
 
 from .models import Address, Contact, Employment, PersonalDetails
+from api.features.applications.permissions import (
+    can_submit_applications,
+    can_view_all_applications,
+)
 from .schemas import (
     AddressIn,
     AddressListOut,
@@ -30,7 +34,7 @@ router = Router()
 
 
 def _is_admin(request):
-    return request.auth.groups.filter(name="admin").exists()
+    return request.user.has_perm(f"api.{can_view_all_applications}")
 
 
 def _accessible_records(request, model):
