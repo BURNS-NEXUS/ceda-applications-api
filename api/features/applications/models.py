@@ -52,7 +52,7 @@ class Application(fsm.FSMModelMixin, models.Model):
         permissions = [  # noqa: RUF012
             (
                 can_view_all_applications,
-                "Can view ALL applicantions",
+                "Can view ALL applications",
             ),
             (
                 can_submit_applications,
