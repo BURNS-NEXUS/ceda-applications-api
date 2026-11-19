@@ -10,11 +10,12 @@ from api.features.clarifications.models import Clarification
 from .filters import ApplicationFilters
 from .models import Application
 from .schemas import (
+    ApplicationDetailOut,
     ApplicationIn,
     ApplicationListOut,
     ApplicationOut,
     ApplicationPatch,
-    FeebackAplicationIn,
+    FeedbackApplicationIn,
 )
 
 router = Router()
@@ -43,12 +44,56 @@ def create_application(request, payload: ApplicationIn):
     return application
 
 
-@router.get("/{application_id}", response=ApplicationOut)
+@router.get("/{application_id}", response=ApplicationDetailOut)
 def get_application(request, application_id: str):
     """Get a specific application."""
     try:
-        application = Application.objects.get(id=application_id, owner=request.auth)
-        return application
+        application = Application.objects.prefetch_related(
+            "personaldetails_set",
+            "address_set",
+            "contact_set",
+            "employment_set",
+            "corporatedetails_set",
+            "shareholders_set",
+            "loans_set",
+            "references_set",
+            "referencescommercialbankers_set",
+            "nextofkin_set",
+            "evaluations__scores",
+            "clarifications",
+        ).get(id=application_id, owner=request.auth)
+        return {
+            **{
+                field: getattr(application, field)
+                for field in (
+                    "id",
+                    "project_title",
+                    "state",
+                    "company_no",
+                    "incorporation_date",
+                    "contact_person",
+                    "telephone",
+                    "business_nature",
+                    "business_location",
+                    "loan_amount",
+                    "email",
+                    "has_current_loan_with_other",
+                    "has_past_loan_with_other",
+                )
+            },
+            "personal_details": application.personaldetails_set.all(),
+            "addresses": application.address_set.all(),
+            "contacts": application.contact_set.all(),
+            "employments": application.employment_set.all(),
+            "corporate_details": application.corporatedetails_set.all(),
+            "shareholders": application.shareholders_set.all(),
+            "loans": application.loans_set.all(),
+            "references": application.references_set.all(),
+            "commercial_bankers": application.referencescommercialbankers_set.all(),
+            "next_of_kin": application.nextofkin_set.all(),
+            "evaluations": application.evaluations.all(),
+            "clarifications": application.clarifications.all(),
+        }
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")
 
@@ -87,6 +132,12 @@ def update_application(request, application_id: str, payload: ApplicationPatch):
             application.loan_amount = payload.loan_amount
         if payload.email is not None:
             application.email = payload.email
+        if payload.has_current_loan_with_other is not None:
+            application.has_current_loan_with_other = (
+                payload.has_current_loan_with_other
+            )
+        if payload.has_past_loan_with_other is not None:
+            application.has_past_loan_with_other = payload.has_past_loan_with_other
         application.save()
         return application
     except Application.DoesNotExist:
@@ -169,7 +220,7 @@ def resubmit_application(request, application_id: str):
     tags=["Application workflows"],
 )
 @csrf_exempt
-def request_feedback(request, application_id: str, payload: FeebackAplicationIn):
+def request_feedback(request, application_id: str, payload: FeedbackApplicationIn):
     """Reject an application by requesting feedback from applicant"""
     try:
         application = Application.objects.get(id=application_id, owner=request.auth)
@@ -189,9 +240,11 @@ def request_feedback(request, application_id: str, payload: FeebackAplicationIn)
         raise HttpError(404, "Application not found")
     except fsm.TransitionNotAllowed:
         print(application.state)
-        raise HttpError(400, "Application cannot be submitted in its current state")
+        raise HttpError(
+            400, "Application cannot be requested for feedback in its current state"
+        )
     except PermissionDenied:
         raise HttpError(
             422,
-            "Submission failed: Application may be in a state that does not allow feedback submission.",
+            "Feedback request failed: Application may be in a state that does not allow feedback submission.",
         )

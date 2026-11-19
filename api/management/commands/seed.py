@@ -9,6 +9,10 @@ PASSWORD = "ceda@321"
 USERS = {
     "admin": ("admin", True),
     "customer": ("customer", False),
+    "evaluator": ("evaluator", False),
+    "evaluator1": ("evaluator", False),
+    "evaluator2": ("evaluator", False),
+    "evaluator3": ("evaluator", False),
 }
 
 

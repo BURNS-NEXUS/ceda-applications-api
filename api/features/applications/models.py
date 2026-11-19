@@ -32,6 +32,15 @@ class Application(fsm.FSMModelMixin, models.Model):
     business_location = models.CharField(max_length=255)
     loan_amount = models.DecimalField(max_digits=10, decimal_places=2)
     email = models.EmailField()
+    type = models.CharField(
+        max_length=255,
+        choices=[
+            ("individual", "Individual"),
+            ("company", "Company"),
+        ],
+    )
+    has_current_loan_with_other = models.BooleanField(default=False)
+    has_past_loan_with_other = models.BooleanField(default=False)
 
     # internal
     submission_count = models.IntegerField(default=0)
