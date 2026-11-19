@@ -7,7 +7,7 @@
 With Docker and Docker Compose installed, start the API from the project root:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 
