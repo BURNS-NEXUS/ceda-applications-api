@@ -47,6 +47,7 @@ class Application(fsm.FSMModelMixin, models.Model):
             ("company", "Company"),
             ("all", "All"),
         ],
+        default="all",
     )
     has_current_loan_with_other = models.BooleanField(default=False)
     has_past_loan_with_other = models.BooleanField(default=False)

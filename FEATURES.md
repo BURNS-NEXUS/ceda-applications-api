@@ -144,6 +144,39 @@ preserved. Invalid values return `422`, a missing permission returns `403`, and
 unauthenticated requests return `401`. All fields carry OpenAPI descriptions,
 examples, and constraints, so the generated schema documents them fully.
 
+### 5. Absentees Feature (`api/features/absentees/`)
+
+Tracks employees who are absent or on leave. Only `User` records can be
+absentees; each user has at most one absence record. Adding replaces the
+previous record; removing clears it. Each record exposes `is_on_leave`
+computed from today's date and the leave period.
+
+**Model:** `Absentee` — `user` (FK), `leave_type` (vacation/sick/personal/
+unpaid/other), `start_date`, `end_date` (nullable, open-ended), `reason`,
+timestamps. Unique constraint on `user`.
+
+**Endpoints:**
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/absentees` | Authenticated | List absences with `is_on_leave` |
+| POST | `/api/absentees` | `api.add_absentee` | Add or update an absence |
+| DELETE | `/api/absentees/{absentee_id}` | `api.delete_absentee` | Remove an absence |
+
+### 6. Scoring Feature (`scoring/`)
+
+A separate Django app providing flexible application scoring: admins define
+criteria (weights, max scores, types), multiple scorers score each application
+independently, and reporting aggregates results.
+
+**Models:** `ScoringCriterion`, `ApplicationScoring` (one per scorer per
+application), `ApplicationScore` (one per criterion per session). Permissions
+are declared in `Meta.permissions` and enforced per-endpoint.
+
+**Endpoints:** see README "Application scoring" section for the full permission
+map and endpoint list. Score math lives in `scoring/services.py` and is shared
+by admin and API.
+
 ## Health Check
 
 A global health check endpoint is available:

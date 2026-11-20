@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Literal
 
+from typing import Literal
+
 from ninja import Schema
 from pydantic import Field
 
@@ -21,6 +23,7 @@ class DocumentTypeIn(Schema):
     allowed_file_types: list[str] = Field(min_length=1)
     is_required: bool = True
     is_active: bool = True
+    application_type: Literal["individual", "company", "all"] = "all"
     application_type: Literal["individual", "company", "all"]
 
 

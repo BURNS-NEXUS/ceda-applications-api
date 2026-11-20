@@ -36,7 +36,7 @@ def _absentee_out(absentee: Absentee) -> AbsenteeOut:
 
 
 @router.get(
-    "/",
+    "/absentees",
     response=list[AbsenteeOut],
     tags=["Absentees"],
     summary="List absentees",
@@ -56,7 +56,7 @@ def list_absentees(request):
 
 
 @router.post(
-    "/",
+    "/absentees",
     response={201: AbsenteeOut},
     tags=["Absentees"],
     summary="Add an absentee (record an absence)",
@@ -115,7 +115,7 @@ def create_absentee(request, payload: AbsenteeCreateIn):
 
 
 @router.delete(
-    "/{absentee_id}",
+    "/absentees/{absentee_id}",
     response=DeleteResult,
     tags=["Absentees"],
     summary="Remove an absentee",

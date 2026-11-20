@@ -8,7 +8,9 @@ def document_upload_progress(application):
     data = []
     missing_required = []
 
-    for document_type in DocumentType.objects.filter(is_active=True):
+    for document_type in DocumentType.objects.filter(is_active=True).filter(
+        application_type__in=[application.application_type, "all"]
+    ):
         document = uploaded.get(document_type.id)
         if document_type.is_required and document is None:
             missing_required.append(document_type.name)

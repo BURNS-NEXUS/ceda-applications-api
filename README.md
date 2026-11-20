@@ -43,6 +43,8 @@ This API uses a **feature-based architecture** where each feature is a self-cont
 - **Auth** (`api/features/auth/`) - User registration, login, and authentication
 - **Applications** (`api/features/applications/`) - Project applications with field `project_title`
 - **Documents** (`api/features/documents/`) - Admin-managed document types and applicant uploads with review decisions
+- **Absentees** (`api/features/absentees/`) - Tracks employees on leave / absent from work
+- **Scoring** (`scoring/`) - Flexible application scoring with criteria, multiple scorers, and reporting
 - **Single types** (`api/features/single_types/`) - Singleton application settings such as site name and maintenance mode
 
 See [FEATURES.md](./FEATURES.md) for detailed API documentation.
@@ -124,6 +126,77 @@ curl -X PATCH http://localhost:8000/api/settings \
 `"evaluators_per_application": 0`, a blank `site_name`, or a non-boolean
 `maintenance_mode`. A user without `api.change_systemsettings` receives `403`.
 Unauthenticated requests receive `401`.
+
+## Absentees (on leave)
+
+Tracks employees who are absent from work or on leave. Only `User` records can be
+absentees. Adding an absence for a user replaces any previous absence; removing
+the record clears it. Each record exposes an `is_on_leave` flag computed from
+today's date and the leave period.
+
+### API endpoints
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/absentees` | Any authenticated user | List all absences with `is_on_leave` |
+| POST | `/api/absentees` | `api.add_absentee` | Add or update an employee's absence |
+| DELETE | `/api/absentees/{absentee_id}` | `api.delete_absentee` | Remove an absence record |
+
+POST body:
+
+```json
+{
+  "user_id": "abc123",
+  "leave_type": "sick",
+  "start_date": "2026-12-01",
+  "end_date": "2026-12-14",
+  "reason": "Medical appointment"
+}
+```
+
+`leave_type` is one of `vacation`, `sick`, `personal`, `unpaid`, `other`.
+`end_date` is optional (omit for open-ended leave). `start_date` must not be
+after `end_date`.
+
+## Application scoring
+
+A flexible scoring system: admins define scoring criteria (weights, max scores,
+types), multiple scorers score each application independently, and reporting
+aggregates per-scorer and per-criterion results.
+
+### Permissions
+
+| Permission | Grants |
+| --- | --- |
+| `scoring.manage_scoring_criteria` | Create/update/delete scoring criteria |
+| `scoring.view_scoringcriterion` | View scoring criteria |
+| `scoring.score_application` | Submit scores for an application |
+| `scoring.view_all_scores` | View scores of all scorers on any application |
+| `scoring.finalize_scoring` | Override/edit submitted scores or mark scoring complete |
+| `scoring.add/change/delete/view_applicationscoring` | Admin CRUD for scoring sessions |
+| `scoring.add/change/delete/view_applicationscore` | Admin CRUD for scores |
+
+### API endpoints
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/scoring-criteria` | `scoring.view_scoringcriterion` | List active criteria (`?include_inactive=true` with manage) |
+| POST | `/api/scoring-criteria` | `scoring.manage_scoring_criteria` | Create a criterion |
+| GET | `/api/scoring-criteria/{id}` | `scoring.view_scoringcriterion` | Retrieve a criterion |
+| PATCH | `/api/scoring-criteria/{id}` | `scoring.manage_scoring_criteria` | Update a criterion |
+| DELETE | `/api/scoring-criteria/{id}` | `scoring.manage_scoring_criteria` | Delete (blocked if scores reference it) |
+| GET | `/api/applications/{id}/scorings` | `score_application` or `view_all_scores` | List sessions (own unless view_all_scores) |
+| GET | `/api/applications/{id}/scorings/me` | `score_application` | Get caller's session |
+| PUT | `/api/applications/{id}/scorings/me` | `score_application` | Create/update caller's draft session (batch scores) |
+| POST | `/api/applications/{id}/scorings/me/submit` | `score_application` | Submit (all required criteria must be scored) |
+| GET | `/api/applications/{id}/scorings/{scoring_id}` | owner or `view_all_scores` | Retrieve a session |
+| PATCH | `/api/applications/{id}/scorings/{scoring_id}` | owner or `finalize_scoring` | Edit a session |
+| DELETE | `/api/applications/{id}/scorings/{scoring_id}` | own draft or `finalize_scoring` | Delete a session |
+| GET | `/api/applications/{id}/scoring-summary` | `view_all_scores` | Per-scorer totals, per-criterion means, overall weighted mean |
+
+Scoring criteria support `numeric` and `boolean` score types; boolean scores must
+be `0` or the criterion maximum. Submitted sessions are immutable unless the
+user has `finalize_scoring`.
 
 ## Application documents
 
