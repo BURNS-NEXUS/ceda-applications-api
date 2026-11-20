@@ -12,6 +12,7 @@ class DocumentTypeOut(Schema):
     allowed_file_types: list[str]
     is_required: bool
     is_active: bool
+    application_type: Literal["individual", "company", "all"]
 
 
 class DocumentTypeIn(Schema):
@@ -20,6 +21,7 @@ class DocumentTypeIn(Schema):
     allowed_file_types: list[str] = Field(min_length=1)
     is_required: bool = True
     is_active: bool = True
+    application_type: Literal["individual", "company", "all"]
 
 
 class DocumentTypePatch(Schema):
@@ -28,6 +30,7 @@ class DocumentTypePatch(Schema):
     allowed_file_types: list[str] | None = Field(default=None, min_length=1)
     is_required: bool | None = None
     is_active: bool | None = None
+    application_type: Literal["individual", "company", "all"] | None = None
 
 
 class DocumentTypeRefOut(Schema):

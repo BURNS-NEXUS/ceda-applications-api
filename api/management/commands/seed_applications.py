@@ -50,6 +50,10 @@ def gen_random_phone():
     return f"+{random.randint(100000000, 999999999)}"
 
 
+def gen_random_application_type():
+    return random.choice(["individual", "company"])
+
+
 def gen_random_email():
     domains = ["ceda.local", "example.com", "test.com"]
     return f"customer{random.randint(1, 100)}@{random.choice(domains)}"
@@ -92,7 +96,7 @@ class Command(BaseCommand):
                 business_location=f"P.O Box \n {gen_random_word(1)}",
                 loan_amount=str(random.randint(100000, 1000000)),
                 email=gen_random_email(),
-                type="company",
+                application_type=gen_random_application_type(),
                 has_current_loan_with_other=random.choice([True, False]),
                 has_past_loan_with_other=random.choice([True, False]),
             )

@@ -40,11 +40,12 @@ class Application(fsm.FSMModelMixin, models.Model):
     business_location = models.CharField(max_length=255)
     loan_amount = models.DecimalField(max_digits=10, decimal_places=2)
     email = models.EmailField()
-    type = models.CharField(
+    application_type = models.CharField(
         max_length=255,
         choices=[
             ("individual", "Individual"),
             ("company", "Company"),
+            ("all", "All"),
         ],
     )
     has_current_loan_with_other = models.BooleanField(default=False)
@@ -92,7 +93,6 @@ class Application(fsm.FSMModelMixin, models.Model):
             details={"state": "verification"},
         )
         audit_log.save()
-        #  We will create a task manager here to prevent one person handling multiple submissions simultaneously.
 
     @fsm.transition(field=state, source="verification", target="evaluation")
     def begin_screening(self, **kwargs):

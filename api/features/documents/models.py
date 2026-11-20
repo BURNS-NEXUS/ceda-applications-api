@@ -46,6 +46,14 @@ class DocumentType(models.Model):
         default=True,
         help_text="Inactive document types are hidden from applicants.",
     )
+    application_type = models.CharField(
+        max_length=255,
+        choices=[
+            ("individual", "Individual"),
+            ("company", "Company"),
+            ("all", "All"),
+        ],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

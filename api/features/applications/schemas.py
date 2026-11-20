@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from ninja import Schema
 
@@ -48,6 +49,7 @@ class ApplicationIn(Schema):
     email: str
     has_current_loan_with_other: bool
     has_past_loan_with_other: bool
+    application_type: Literal["individual", "company", "all"]
 
 
 class ApplicationPatch(Schema):
@@ -62,6 +64,7 @@ class ApplicationPatch(Schema):
     email: str | None = None
     has_current_loan_with_other: bool | None = None
     has_past_loan_with_other: bool | None = None
+    application_type: Literal["individual", "company", "all"] | None = None
 
 
 class ApplicationListOut(Schema):

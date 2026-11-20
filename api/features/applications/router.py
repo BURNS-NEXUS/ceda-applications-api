@@ -152,6 +152,8 @@ def update_application(request, application_id: str, payload: ApplicationPatch):
             )
         if payload.has_past_loan_with_other is not None:
             application.has_past_loan_with_other = payload.has_past_loan_with_other
+        if payload.application_type is not None:
+            application.application_type = payload.application_type
         application.save()
         return application
     except Application.DoesNotExist:

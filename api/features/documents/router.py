@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Literal, Optional
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -10,6 +11,7 @@ from ninja import File, Form, Router
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
+ApplicationType = Literal["individual", "company", "all"]
 from api.features.applications.models import Application
 from api.features.tasks.models import Task
 from api.features.tasks.services import is_assigned
@@ -162,7 +164,11 @@ def _delete_stored_file(document):
     tags=["Document types"],
     summary="List document types",
 )
-def list_document_types(request, include_inactive: bool = False):
+def list_document_types(
+    request,
+    include_inactive: bool = False,
+    application_type: ApplicationType | None = None,
+):
     """List active document types.
 
     Users with ``api.view_all_document_types`` may pass
@@ -176,6 +182,8 @@ def list_document_types(request, include_inactive: bool = False):
     document_types = DocumentType.objects.all()
     if not include_inactive:
         document_types = document_types.filter(is_active=True)
+    if application_type != "all" and application_type is not None:
+        document_types = document_types.filter(application_type=application_type)
     return document_types
 
 
@@ -249,6 +257,7 @@ def update_document_type(request, document_type_id: str, payload: DocumentTypePa
     tags=["Document types"],
     summary="Delete a document type",
 )
+@csrf_exempt
 def delete_document_type(request, document_type_id: str):
     """Delete an unused document type.
 

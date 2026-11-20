@@ -3,8 +3,7 @@ from .models import DocumentType
 
 def document_upload_progress(application):
     uploaded = {
-        document.document_type_id: document
-        for document in application.documents.all()
+        document.document_type_id: document for document in application.documents.all()
     }
     data = []
     missing_required = []
@@ -24,6 +23,7 @@ def document_upload_progress(application):
                 "uploaded": document is not None,
                 "document_id": document.id if document else None,
                 "status": document.status if document else None,
+                "application_type": document_type.application_type,
             }
         )
 
