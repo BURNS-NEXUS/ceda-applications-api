@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-^0aiqw#%-y%ix$tmk^&4jzevqg=h9d5)(ra828$$*8xr+h(9wp
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "74.50.99.137", "ceda-api.bawetsi.com"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "74.50.99.137", "bawetsi.com"]
 
 
 # Application definition
@@ -143,3 +143,5 @@ MAILERS = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+# CSRF_TRUSTED_ORIGINS = []
