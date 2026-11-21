@@ -86,8 +86,9 @@ class Application(fsm.FSMModelMixin, models.Model):
     # region State  Transitions
     @fsm.transition(field=state, source="draft", target="verification")
     def submit(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'draft' to 'verification'",
             resource_type="Application",
             resource_id=self.id,
@@ -97,8 +98,9 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     @fsm.transition(field=state, source="verification", target="evaluation")
     def verify(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'verification' to 'evaluation'",
             resource_type="Application",
             resource_id=self.id,
@@ -108,8 +110,9 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     @fsm.transition(field=state, source="verification", target="feedback")
     def request_feedback(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'verification' to 'feedback'",
             resource_type="Application",
             resource_id=self.id,
@@ -119,8 +122,9 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     @fsm.transition(field=state, source="feedback", target="submitted")
     def resubmit(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'feedback' to 'submitted'",
             resource_type="Application",
             resource_id=self.id,
@@ -130,8 +134,9 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     @fsm.transition(field=state, source=["evaluation", "scoring"], target="adjudication")
     def adjudicate(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'evaluation' to 'adjudication'",
             resource_type="Application",
             resource_id=self.id,
@@ -142,8 +147,9 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     @fsm.transition(field=state, source="adjudication", target="accepted")
     def accept(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'adjudication' to 'accepted'",
             resource_type="Application",
             resource_id=self.id,
@@ -153,8 +159,9 @@ class Application(fsm.FSMModelMixin, models.Model):
 
     @fsm.transition(field=state, source="adjudication", target="rejected")
     def reject(self, **kwargs):
+        actor = kwargs.get("actor", self.owner)
         audit_log = AuditLog.objects.create(
-            actor=self.owner,
+            actor=actor,
             action=f"Changed state of '{self.project_title}' from 'adjudication' to 'rejected'",
             resource_type="Application",
             resource_id=self.id,

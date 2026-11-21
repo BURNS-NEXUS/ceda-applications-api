@@ -205,7 +205,7 @@ def submit_application(request, application_id: str):
                 "All required documents must be uploaded before submission. "
                 f"Missing: {', '.join(document_progress['missing_required'])}.",
             )
-        application.submit()
+        application.submit(actor=request.auth)
         application.save()
         ensure_task_for_application(application)
         return application
@@ -256,7 +256,7 @@ def verify_application(request, application_id: str):
                 f"{not_accepted} document(s) are pending or rejected.",
             )
         with transaction.atomic():
-            application.verify()
+            application.verify(actor=request.auth)
             application.save()
             # Completes the verification task and creates/assigns the evaluation
             # task using the evaluators_per_application system setting.
@@ -295,7 +295,7 @@ def resubmit_application(request, application_id: str):
                 "All required documents must be uploaded before resubmission. "
                 f"Missing: {', '.join(document_progress['missing_required'])}.",
             )
-        application.resubmit()
+        application.resubmit(actor=request.auth)
         application.save()
         ensure_task_for_application(application)
         return application

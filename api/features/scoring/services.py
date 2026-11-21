@@ -101,7 +101,7 @@ create_adjudication_task = task_services.create_adjudication_task
 
 
 @transaction.atomic
-def maybe_transition_to_adjudication(application):
+def maybe_transition_to_adjudication(application, actor=None):
     application = Application.objects.select_for_update().get(pk=application.pk)
     state = application.state
     if state not in ("evaluation", "scoring"):
@@ -114,7 +114,7 @@ def maybe_transition_to_adjudication(application):
 
     if not fsm.can_proceed(application.adjudicate):
         return application
-    application.adjudicate()
+    application.adjudicate(actor=actor)
     application.save()
 
     # Mark the evaluation task completed and create/assign the adjudication task
@@ -131,6 +131,7 @@ def confirm_scoring(application, scorer):
 
 @transaction.atomic
 def confirm_adjudication(application, adjudicator):
+    from api.features.audit_logs.models import AuditLog
     from api.features.single_types.models import SystemSettings
 
     application = Application.objects.select_for_update().get(pk=application.pk)
@@ -154,6 +155,14 @@ def confirm_adjudication(application, adjudicator):
     adjudication.confirmed_at = timezone.now()
     adjudication.save(update_fields=["status", "confirmed_at", "updated_at"])
 
+    AuditLog.objects.create(
+        actor=adjudicator,
+        action=f"Confirmed adjudication for application {application.id}",
+        resource_type="ApplicationAdjudication",
+        resource_id=adjudication.id,
+        details={"application_id": application.id, "final_score": str(adjudication.final_score)},
+    )
+
     # Mark the adjudication task completed via the existing Task module.
     task = Task.objects.filter(
         application=application,
@@ -165,10 +174,10 @@ def confirm_adjudication(application, adjudicator):
     settings = SystemSettings.load()
     if adjudication.final_score >= settings.minimum_score:
         if fsm.can_proceed(application.accept):
-            application.accept()
+            application.accept(actor=adjudicator)
             application.save()
     else:
         if fsm.can_proceed(application.reject):
-            application.reject()
+            application.reject(actor=adjudicator)
             application.save()
     return adjudication

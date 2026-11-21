@@ -282,7 +282,7 @@ def _get_scoring(application_id, scoring_id):
 )
 def list_application_scorings(request, application_id: str):
     application = _get_application(application_id)
-    if not _has_perm(request, PERM_VIEW_ALL_SCORES):
+    if not (_has_perm(request, PERM_SCORE_APPLICATION) or _has_perm(request, PERM_VIEW_ALL_SCORES)):
         raise HttpError(403, "You do not have permission to view scorings.")
 
     sessions = (
@@ -426,7 +426,16 @@ def confirm_my_scoring(request, application_id: str):
         scoring.save(
             update_fields=["status", "confirmed_at", "submitted_at", "updated_at"]
         )
-        maybe_transition_to_adjudication(application_locked)
+        maybe_transition_to_adjudication(application_locked, actor=request.auth)
+        from api.features.audit_logs.models import AuditLog
+
+        AuditLog.objects.create(
+            actor=request.auth,
+            action=f"Confirmed scoring for application {application.id}",
+            resource_type="ApplicationScoring",
+            resource_id=scoring.id,
+            details={"application_id": application.id},
+        )
 
     scoring = (
         ApplicationScoring.objects.select_related("scorer")
