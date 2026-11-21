@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from ninja import Schema
 from pydantic import Field
 
@@ -24,6 +26,12 @@ class SettingsOut(Schema):
         ),
         examples=[2],
     )
+    minimum_score: Decimal = Field(
+        ...,
+        ge=0,
+        description="Minimum adjudication score required for acceptance.",
+        examples=[0],
+    )
 
 
 class SettingsIn(Schema):
@@ -47,4 +55,10 @@ class SettingsIn(Schema):
             "Must be at least 1."
         ),
         examples=[3],
+    )
+    minimum_score: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Minimum adjudication score required for acceptance.",
+        examples=[50],
     )

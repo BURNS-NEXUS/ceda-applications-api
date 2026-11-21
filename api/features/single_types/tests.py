@@ -88,6 +88,7 @@ class SystemSettingsEndpointTests(TestCase):
                 "site_name": "My App",
                 "maintenance_mode": False,
                 "evaluators_per_application": 2,
+                "minimum_score": "0",
             },
         )
         self.assertEqual(SystemSettings.objects.count(), 1)

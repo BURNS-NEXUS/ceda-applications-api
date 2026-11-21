@@ -1,5 +1,6 @@
 import django_fsm as fsm
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from ninja import Query, Router
 from ninja.errors import HttpError
@@ -7,11 +8,17 @@ from ninja.security import django_auth
 
 from api.features.clarifications.models import Clarification
 from api.features.documents.services import document_upload_progress
-from api.features.tasks.services import ensure_task_for_application
+from api.features.documents.models import ApplicationDocument
+from api.features.tasks.models import Task
+from api.features.tasks.services import ensure_task_for_application, is_assigned
 
 from .filters import ApplicationFilters
 from .models import Application
-from .permissions import can_submit_applications, can_view_all_applications
+from .permissions import (
+    can_submit_applications,
+    can_verify_applications,
+    can_view_all_applications,
+)
 from .schemas import (
     ApplicationDetailOut,
     ApplicationIn,
@@ -210,6 +217,59 @@ def submit_application(request, application_id: str):
         raise HttpError(
             422,
             "Submission failed: You do not have permission to submit this application.",
+        )
+
+
+@router.post(
+    "/{application_id}/wf/verify",
+    response=ApplicationOut,
+    auth=django_auth,
+    tags=["Application workflows"],
+    description=(
+        "Verify an application from submission state. The application must be in a state that allows verification.\n\n"
+        "Requires authentication. \n"
+    ),
+)
+@csrf_exempt
+def verify_application(request, application_id: str):
+    """Verify an application and open its evaluation task."""
+    try:
+        application = Application.objects.get(id=application_id)
+        if not request.user.has_perm(f"api.{can_verify_applications}"):
+            raise PermissionDenied
+        if not fsm.can_proceed(application.verify):
+            raise HttpError(400, "Application cannot be verified in its current state")
+        task = Task.objects.filter(
+            application=application,
+            task_type=Task.Type.VERIFICATION,
+            status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
+        ).first()
+        if not is_assigned(task, request.auth):
+            raise HttpError(403, "You are not assigned to verify this application")
+        not_accepted = application.documents.exclude(
+            status=ApplicationDocument.Status.ACCEPTED
+        ).count()
+        if not_accepted:
+            raise HttpError(
+                422,
+                "All documents must be accepted before verification. "
+                f"{not_accepted} document(s) are pending or rejected.",
+            )
+        with transaction.atomic():
+            application.verify()
+            application.save()
+            # Completes the verification task and creates/assigns the evaluation
+            # task using the evaluators_per_application system setting.
+            ensure_task_for_application(application)
+        return application
+    except Application.DoesNotExist:
+        raise HttpError(404, "Application not found")
+    except fsm.TransitionNotAllowed:
+        raise HttpError(400, "Application cannot be verified in its current state")
+    except PermissionDenied:
+        raise HttpError(
+            403,
+            "Verification failed: You do not have permission to verify this application.",
         )
 
 

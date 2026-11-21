@@ -14,6 +14,7 @@ class Command(BaseCommand):
             state__in=[
                 "verification",
                 "evaluation",
+                "scoring",
                 "adjudication",
             ]
         ):

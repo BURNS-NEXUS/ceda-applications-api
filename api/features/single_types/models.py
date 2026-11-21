@@ -21,6 +21,12 @@ class SystemSettings(SingletonModel):
         validators=[MinValueValidator(1)],
         help_text="Number of evaluators assigned to each application.",
     )
+    minimum_score = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=0,
+        help_text="Minimum adjudication score required for acceptance.",
+    )
 
     class Meta:
         verbose_name = "System settings"

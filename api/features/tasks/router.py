@@ -104,7 +104,8 @@ def assign_employee(request, task_id: str, payload: TaskAssignIn):
         raise HttpError(404, "Employee not found")
 
     candidates = list(available_employees(task.task_type))
-    if len(candidates) < 2:
+    minimum_candidates = 1 if task.task_type == Task.Type.ADJUDICATION else 2
+    if len(candidates) < minimum_candidates:
         raise HttpError(409, "At least two available employees are required")
     if employee not in candidates or is_currently_absent(employee):
         raise HttpError(422, "Employee is absent or does not have the required role")

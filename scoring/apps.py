@@ -1,6 +1,1 @@
-from django.apps import AppConfig
-
-
-class ScoringConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "scoring"
+from api.features.scoring.apps import *  # noqa: F401,F403

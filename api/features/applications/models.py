@@ -96,7 +96,7 @@ class Application(fsm.FSMModelMixin, models.Model):
         audit_log.save()
 
     @fsm.transition(field=state, source="verification", target="evaluation")
-    def begin_screening(self, **kwargs):
+    def verify(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
             action=f"Changed state of '{self.project_title}' from 'verification' to 'evaluation'",
@@ -128,26 +128,48 @@ class Application(fsm.FSMModelMixin, models.Model):
         )
         audit_log.save()
 
-    @fsm.transition(field=state, source="evaluation", target="ineligible")
-    def make_ineligible(self, **kwargs):
-        audit_log = AuditLog.objects.create(
-            actor=self.owner,
-            action=f"Changed state of '{self.project_title}' to 'ineligible'",
-            resource_type="Application",
-            resource_id=self.id,
-            details={"state": "ineligible"},
-        )
-        audit_log.save()
-        # TODO: Send notification to the applicant about ineligibility
-
-    @fsm.transition(field=state, source="evaluation", target="adjudication")
-    def make_eligible(self, **kwargs):
+    @fsm.transition(field=state, source=["evaluation", "scoring"], target="adjudication")
+    def adjudicate(self, **kwargs):
         audit_log = AuditLog.objects.create(
             actor=self.owner,
             action=f"Changed state of '{self.project_title}' from 'evaluation' to 'adjudication'",
             resource_type="Application",
             resource_id=self.id,
-            details={"state": ""},
+            details={"state": "adjudication"},
+        )
+        audit_log.save()
+        # TODO: Send notification to the applicant about ineligibility
+
+    @fsm.transition(field=state, source="adjudication", target="accepted")
+    def accept(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'adjudication' to 'accepted'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "accepted"},
+        )
+        audit_log.save()
+
+    @fsm.transition(field=state, source="adjudication", target="rejected")
+    def reject(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'adjudication' to 'rejected'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "rejected"},
+        )
+        audit_log.save()
+
+    @fsm.transition(field=state, source="evaluation", target="eligible")
+    def make_eligible(self, **kwargs):
+        audit_log = AuditLog.objects.create(
+            actor=self.owner,
+            action=f"Changed state of '{self.project_title}' from 'evaluation' to 'eligible'",
+            resource_type="Application",
+            resource_id=self.id,
+            details={"state": "eligible"},
         )
         audit_log.save()
 

@@ -370,7 +370,7 @@ class ReferencesCommercialBankersAdmin(admin.ModelAdmin):
 
 
 class SystemSettingsAdmin(admin.ModelAdmin):
-    fields = ("site_name", "maintenance_mode", "evaluators_per_application")
+    fields = ("site_name", "maintenance_mode", "evaluators_per_application", "minimum_score")
 
     def has_add_permission(self, request):
         return not SystemSettings.objects.exists()

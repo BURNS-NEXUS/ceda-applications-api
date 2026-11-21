@@ -28,6 +28,8 @@ def role_for_task_type(task_type):
 def required_assignees(task_type):
     if task_type == Task.Type.VERIFICATION:
         return 1
+    if task_type == Task.Type.ADJUDICATION:
+        return 1
     return SystemSettings.load().evaluators_per_application
 
 
@@ -77,6 +79,7 @@ def task_type_for_application_state(state):
     return {
         Task.Type.VERIFICATION: Task.Type.VERIFICATION,
         Task.Type.EVALUATION: Task.Type.EVALUATION,
+        "scoring": Task.Type.EVALUATION,
         Task.Type.ADJUDICATION: Task.Type.ADJUDICATION,
         **LEGACY_TASK_STATES,
     }.get(state)
@@ -153,7 +156,8 @@ def assign_task(task):
         return task
 
     candidates = list(available_employees(task.task_type))
-    if len(candidates) < 2 or len(candidates) < slots:
+    minimum_candidates = 1 if task.task_type == Task.Type.ADJUDICATION else 2
+    if len(candidates) < minimum_candidates or len(candidates) < slots:
         return task
 
     previous_ids = set(
@@ -221,3 +225,76 @@ def is_currently_absent(user):
         .filter(models.Q(end_date__gte=today) | models.Q(end_date__isnull=True))
         .exists()
     )
+
+
+def _active_evaluation_assignments(application):
+    return TaskAssignment.objects.filter(
+        task__application=application,
+        task__task_type=Task.Type.EVALUATION,
+        task__status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
+        is_active=True,
+    )
+
+
+def user_can_evaluate(user, application):
+    return _active_evaluation_assignments(application).filter(employee=user).exists()
+
+
+def _active_adjudication_assignments(application):
+    return TaskAssignment.objects.filter(
+        task__application=application,
+        task__task_type=Task.Type.ADJUDICATION,
+        task__status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
+        is_active=True,
+    )
+
+
+def user_can_adjudicate(user, application):
+    return _active_adjudication_assignments(application).filter(employee=user).exists()
+
+
+def evaluators_total(application):
+    return TaskAssignment.objects.filter(
+        task__application=application,
+        task__task_type=Task.Type.EVALUATION,
+        task__status__in=[
+            Task.Status.PENDING,
+            Task.Status.ASSIGNED,
+            Task.Status.COMPLETED,
+        ],
+        is_active=True,
+    ).count()
+
+
+def submissions_total(application):
+    from api.features.scoring.models import ApplicationScoring
+
+    return ApplicationScoring.objects.filter(
+        application=application, status=ApplicationScoring.Status.CONFIRMED
+    ).count()
+
+
+def complete_task(task):
+    if task is None:
+        return None
+    task.status = Task.Status.COMPLETED
+    task.save(update_fields=["status", "updated_at"])
+    return task
+
+
+def create_adjudication_task(application):
+    task = Task.objects.filter(
+        application=application,
+        task_type=Task.Type.ADJUDICATION,
+        status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
+    ).first()
+    if task is None:
+        task = Task.objects.create(
+            application=application, task_type=Task.Type.ADJUDICATION
+        )
+    return task
+
+
+def assign_adjudicator(application):
+    task = create_adjudication_task(application)
+    return assign_task(task)

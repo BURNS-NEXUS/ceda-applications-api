@@ -17,6 +17,8 @@ from api.features.documents.permissions import (
     view_all_application_documents,
     view_all_document_types,
 )
+from api.features.scoring.permissions import view_scoringcriterion
+from api.features.single_types.permissions import change_systemsettings
 from api.features.tasks.permissions import (
     can_assign_supervisor,
     can_supervise_tasks,
@@ -45,9 +47,13 @@ role_permission_map = {
     "admin": [can_assign_supervisor],
     "customer": [can_submit_applications],
     "evaluator": [can_evaluate_applications],
-    "verification": [can_verify_applications, can_view_all_applications],
+    "verification": [
+        can_verify_applications,
+        can_view_all_applications,
+        review_application_document,
+    ],
     "supervisor": [can_supervise_tasks],
-    "adjudicator": [can_adjudicate_applications],
+    "adjudicator": [can_adjudicate_applications, view_scoringcriterion],
     "webmaster": [
         can_assign_supervisor,
         can_supervise_tasks,
@@ -61,6 +67,8 @@ role_permission_map = {
         view_all_application_documents,
         manage_all_application_documents,
         review_application_document,
+        change_systemsettings,
+        view_scoringcriterion,
     ],
 }
 

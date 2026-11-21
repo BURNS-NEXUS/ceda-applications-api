@@ -458,6 +458,7 @@ def update_document(
     tags=["Documents"],
     summary="Delete an application document",
 )
+@csrf_exempt
 def delete_document(request, application_id: str, document_id: str):
     """Delete a document and its stored file."""
     application = _get_application(

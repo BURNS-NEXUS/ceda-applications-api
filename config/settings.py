@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "api",
     "django_fsm",
-    "scoring",
+    "api.features.scoring",
     "corsheaders",
 ]
 
