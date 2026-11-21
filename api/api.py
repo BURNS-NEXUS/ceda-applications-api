@@ -15,6 +15,7 @@ from .features.references.router import router as references_router
 from .features.single_types.router import router as single_types_router
 from .features.tasks.router import router as tasks_router
 from .features.scoring.router import router as scoring_router
+from .features.reporting.router import router as reporting_router
 
 # Session-id (cookie) auth: the `sessionid` cookie is resolved by Django's
 # SessionMiddleware/AuthenticationMiddleware; unsafe methods require a CSRF token.
@@ -34,6 +35,7 @@ api.add_router("", references_router)
 api.add_router("", financial_details_router)
 api.add_router("", single_types_router)
 api.add_router("", scoring_router, tags=["Scoring"])
+api.add_router("", reporting_router, tags=["Reporting"])
 api.add_router("/tasks", tasks_router, tags=["Tasks"])
 
 

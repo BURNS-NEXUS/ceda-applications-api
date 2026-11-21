@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "api",
     "django_fsm",
     "api.features.scoring",
+    "api.features.reporting",
     "corsheaders",
 ]
 

@@ -7,8 +7,8 @@ from ninja.errors import HttpError
 from ninja.security import django_auth
 
 from api.features.clarifications.models import Clarification
-from api.features.documents.services import document_upload_progress
 from api.features.documents.models import ApplicationDocument
+from api.features.documents.services import document_upload_progress
 from api.features.tasks.models import Task
 from api.features.tasks.services import ensure_task_for_application, is_assigned
 
@@ -295,9 +295,10 @@ def resubmit_application(request, application_id: str):
                 "All required documents must be uploaded before resubmission. "
                 f"Missing: {', '.join(document_progress['missing_required'])}.",
             )
-        application.resubmit(actor=request.auth)
-        application.save()
-        ensure_task_for_application(application)
+        with transaction.atomic():
+            application.resubmit(actor=request.auth)
+            application.save()
+            ensure_task_for_application(application)
         return application
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")
@@ -329,9 +330,10 @@ def request_feedback(request, application_id: str, payload: FeedbackApplicationI
             version=application.submission_count,
             created_by=request.auth,
         )
-        application.request_feedback()
-        clarification.save()
-        application.save()
+        with transaction.atomic():
+            application.request_feedback(actor=request.auth)
+            clarification.save()
+            application.save()
         return application
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")
