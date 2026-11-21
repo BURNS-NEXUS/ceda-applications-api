@@ -52,7 +52,10 @@ class ScoringCriterion(models.Model):
             ),
         ]
         permissions = [  # noqa: RUF012
-            ("manage_scoring_criteria", "Can create, update, and delete scoring criteria"),
+            (
+                "manage_scoring_criteria",
+                "Can create, update, and delete scoring criteria",
+            ),
         ]
 
     def __str__(self):
@@ -61,9 +64,13 @@ class ScoringCriterion(models.Model):
     def clean(self):
         super().clean()
         if self.weight is not None and self.weight < 0:
-            raise ValidationError({"weight": "Weight must be greater than or equal to 0."})
+            raise ValidationError(
+                {"weight": "Weight must be greater than or equal to 0."}
+            )
         if self.max_score is not None and self.max_score <= 0:
-            raise ValidationError({"max_score": "Maximum score must be greater than 0."})
+            raise ValidationError(
+                {"max_score": "Maximum score must be greater than 0."}
+            )
 
 
 class ApplicationScoring(models.Model):
@@ -106,7 +113,10 @@ class ApplicationScoring(models.Model):
         permissions = [  # noqa: RUF012
             ("score_application", "Can submit scores for an application"),
             ("view_all_scores", "Can view scores of all scorers on any application"),
-            ("finalize_scoring", "Can override/edit scores after submission or mark scoring complete"),
+            (
+                "finalize_scoring",
+                "Can override/edit scores after submission or mark scoring complete",
+            ),
         ]
 
     def __str__(self):
@@ -151,10 +161,14 @@ class ApplicationScore(models.Model):
         if self.criterion_id is None or self.score is None:
             return
         if self.score < 0:
-            raise ValidationError({"score": "Score must be greater than or equal to 0."})
+            raise ValidationError(
+                {"score": "Score must be greater than or equal to 0."}
+            )
         if self.score > self.criterion.max_score:
             raise ValidationError(
-                {"score": f"Score cannot exceed the criterion maximum of {self.criterion.max_score}."}
+                {
+                    "score": f"Score cannot exceed the criterion maximum of {self.criterion.max_score}."
+                }
             )
         if self.criterion.score_type == ScoringCriterion.ScoreType.BOOLEAN:
             if self.score not in (Decimal("0"), self.criterion.max_score):
@@ -203,3 +217,61 @@ class ApplicationAdjudication(models.Model):
 
     def __str__(self):
         return f"Adjudication for {self.application_id}"
+
+
+class ApplicationAdjudicationScore(models.Model):
+    """Final score assigned by the adjudicator for one criterion."""
+
+    adjudication = models.ForeignKey(
+        ApplicationAdjudication,
+        on_delete=models.CASCADE,
+        related_name="scores",
+    )
+    criterion = models.ForeignKey(
+        ScoringCriterion,
+        on_delete=models.PROTECT,
+        related_name="adjudication_scores",
+    )
+    score = models.DecimalField(max_digits=6, decimal_places=2)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["criterion__order", "criterion__name"]  # noqa: RUF012
+        constraints = [  # noqa: RUF012
+            models.UniqueConstraint(
+                fields=["adjudication", "criterion"],
+                name="unique_adjudication_score_per_criterion",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(score__gte=0),
+                name="adjudicationscore_score_gte_0",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.criterion_id is None or self.score is None:
+            return
+        if self.score < 0:
+            raise ValidationError(
+                {"score": "Score must be greater than or equal to 0."}
+            )
+        if self.score > self.criterion.max_score:
+            raise ValidationError(
+                {
+                    "score": (
+                        "Score cannot exceed the criterion maximum of "
+                        f"{self.criterion.max_score}."
+                    )
+                }
+            )
+        if self.criterion.score_type == ScoringCriterion.ScoreType.BOOLEAN:
+            if self.score not in (Decimal("0"), self.criterion.max_score):
+                raise ValidationError(
+                    {"score": "Boolean scores must be 0 or the criterion maximum."}
+                )
+
+    def __str__(self):
+        return f"{self.criterion}: {self.score}"

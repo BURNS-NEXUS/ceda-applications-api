@@ -1,1 +1,6 @@
 view_scoringcriterion = "view_scoringcriterion"
+manage_scoring_criteria = "manage_scoring_criteria"
+score_application = "score_application"
+view_all_scores = "view_all_scores"
+finalize_scoring = "finalize_scoring"
+adjudicate_application = "adjudicate_application"

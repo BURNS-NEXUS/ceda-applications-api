@@ -29,6 +29,17 @@ class ScoringCriterionIn(Schema):
     order: int = Field(default=0, ge=0)
 
 
+class ScoringCriterionPatch(Schema):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    weight: Decimal | None = Field(default=None, ge=0)
+    max_score: Decimal | None = Field(default=None, gt=0)
+    score_type: str | None = None
+    is_required: bool | None = None
+    is_active: bool | None = None
+    order: int | None = Field(default=None, ge=0)
+
+
 class ApplicationScoreIn(Schema):
     criterion_id: int
     score: Decimal
@@ -99,11 +110,12 @@ class ApplicationAdjudicationOut(Schema):
     final_score: Decimal | None = None
     comment: str = ""
     status: str
+    scores: list[ApplicationScoreOut]
     confirmed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class ApplicationAdjudicationIn(Schema):
-    final_score: Decimal | None = None
+    scores: list[ApplicationScoreIn]
     comment: str | None = None

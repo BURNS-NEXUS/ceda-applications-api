@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 
 from .models import (
     ApplicationAdjudication,
+    ApplicationAdjudicationScore,
     ApplicationScore,
     ApplicationScoring,
     ScoringCriterion,
@@ -28,6 +29,7 @@ from .schemas import (
     ScorerTotalOut,
     ScoringCriterionIn,
     ScoringCriterionOut,
+    ScoringCriterionPatch,
 )
 from .services import (
     confirm_adjudication,
@@ -110,7 +112,9 @@ def _scoring_out(scoring):
         status=scoring.status,
         submitted_at=scoring.submitted_at,
         confirmed_at=scoring.confirmed_at,
-        scores=[_score_out(s) for s in scoring.scores.select_related("criterion").all()],
+        scores=[
+            _score_out(s) for s in scoring.scores.select_related("criterion").all()
+        ],
         created_at=scoring.created_at,
         updated_at=scoring.updated_at,
     )
@@ -206,14 +210,16 @@ def get_scoring_criterion(request, criterion_id: int):
     operation_id="updateScoringCriterion",
 )
 @csrf_exempt
-def update_scoring_criterion(request, criterion_id: int, payload: ScoringCriterionIn):
+def update_scoring_criterion(
+    request, criterion_id: int, payload: ScoringCriterionPatch
+):
     _require_perm(request, PERM_MANAGE_CRITERIA)
     try:
         criterion = ScoringCriterion.objects.get(id=criterion_id)
     except ScoringCriterion.DoesNotExist:
         raise HttpError(404, "Scoring criterion not found")
 
-    data = payload.model_dump(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True, exclude_none=True)
     for field, value in data.items():
         setattr(criterion, field, value)
     try:
@@ -259,9 +265,9 @@ def delete_scoring_criterion(request, criterion_id: int):
 
 def _get_scoring(application_id, scoring_id):
     try:
-        scoring = ApplicationScoring.objects.select_related("application", "scorer").get(
-            id=scoring_id, application_id=application_id
-        )
+        scoring = ApplicationScoring.objects.select_related(
+            "application", "scorer"
+        ).get(id=scoring_id, application_id=application_id)
     except ApplicationScoring.DoesNotExist:
         raise HttpError(404, "Scoring session not found")
     return scoring
@@ -276,10 +282,14 @@ def _get_scoring(application_id, scoring_id):
 )
 def list_application_scorings(request, application_id: str):
     application = _get_application(application_id)
-    if not (_has_perm(request, PERM_SCORE_APPLICATION) or _has_perm(request, PERM_VIEW_ALL_SCORES)):
+    if not _has_perm(request, PERM_VIEW_ALL_SCORES):
         raise HttpError(403, "You do not have permission to view scorings.")
 
-    sessions = ApplicationScoring.objects.filter(application=application).select_related("scorer").prefetch_related("scores__criterion")
+    sessions = (
+        ApplicationScoring.objects.filter(application=application)
+        .select_related("scorer")
+        .prefetch_related("scores__criterion")
+    )
     if not _has_perm(request, PERM_VIEW_ALL_SCORES):
         sessions = sessions.filter(scorer=request.auth)
     return [_scoring_out(s) for s in sessions]
@@ -294,19 +304,26 @@ def list_application_scorings(request, application_id: str):
 )
 def get_my_scoring(request, application_id: str):
     application = _get_application(application_id)
-    if not (_has_perm(request, PERM_SCORE_APPLICATION) or _has_perm(request, PERM_VIEW_ALL_SCORES)):
+    if not (
+        _has_perm(request, PERM_SCORE_APPLICATION)
+        or _has_perm(request, PERM_VIEW_ALL_SCORES)
+    ):
         raise HttpError(403, "You do not have permission to view scorings.")
     if not _has_perm(request, PERM_VIEW_ALL_SCORES):
         try:
-            existing = ApplicationScoring.objects.get(application=application, scorer=request.auth)
+            existing = ApplicationScoring.objects.get(
+                application=application, scorer=request.auth
+            )
             if existing.scorer_id != request.auth.id:
                 raise HttpError(403, "You are not assigned to score this application.")
         except ApplicationScoring.DoesNotExist:
             if not user_can_evaluate(request.auth, application):
                 raise HttpError(403, "You are not assigned to score this application.")
     try:
-        scoring = ApplicationScoring.objects.select_related("scorer").prefetch_related("scores__criterion").get(
-            application=application, scorer=request.auth
+        scoring = (
+            ApplicationScoring.objects.select_related("scorer")
+            .prefetch_related("scores__criterion")
+            .get(application=application, scorer=request.auth)
         )
     except ApplicationScoring.DoesNotExist:
         raise HttpError(404, "Scoring session not found")
@@ -357,7 +374,11 @@ def upsert_my_scoring(request, application_id: str, payload: ApplicationScoringU
         )
 
     scoring.save()
-    scoring = ApplicationScoring.objects.select_related("scorer").prefetch_related("scores__criterion").get(id=scoring.id)
+    scoring = (
+        ApplicationScoring.objects.select_related("scorer")
+        .prefetch_related("scores__criterion")
+        .get(id=scoring.id)
+    )
     return _scoring_out(scoring)
 
 
@@ -376,8 +397,10 @@ def confirm_my_scoring(request, application_id: str):
         raise HttpError(403, "You are not assigned to score this application.")
 
     try:
-        scoring = ApplicationScoring.objects.select_related("scorer").prefetch_related("scores__criterion").get(
-            application=application, scorer=request.auth
+        scoring = (
+            ApplicationScoring.objects.select_related("scorer")
+            .prefetch_related("scores__criterion")
+            .get(application=application, scorer=request.auth)
         )
     except ApplicationScoring.DoesNotExist:
         raise HttpError(404, "Scoring session not found")
@@ -385,21 +408,31 @@ def confirm_my_scoring(request, application_id: str):
     if scoring.status == ApplicationScoring.Status.CONFIRMED:
         return _scoring_out(scoring)
 
-    required_criteria = ScoringCriterion.objects.filter(is_active=True, is_required=True)
+    required_criteria = ScoringCriterion.objects.filter(
+        is_active=True, is_required=True
+    )
     scored_ids = set(scoring.scores.values_list("criterion_id", flat=True))
     missing = [c.name for c in required_criteria if c.id not in scored_ids]
     if missing:
         raise HttpError(400, "Missing required criteria: " + ", ".join(missing) + ".")
 
     with transaction.atomic():
-        application_locked = Application.objects.select_for_update().get(pk=application.pk)
+        application_locked = Application.objects.select_for_update().get(
+            pk=application.pk
+        )
         scoring.status = ApplicationScoring.Status.CONFIRMED
         scoring.confirmed_at = timezone.now()
         scoring.submitted_at = scoring.confirmed_at
-        scoring.save(update_fields=["status", "confirmed_at", "submitted_at", "updated_at"])
+        scoring.save(
+            update_fields=["status", "confirmed_at", "submitted_at", "updated_at"]
+        )
         maybe_transition_to_adjudication(application_locked)
 
-    scoring = ApplicationScoring.objects.select_related("scorer").prefetch_related("scores__criterion").get(id=scoring.id)
+    scoring = (
+        ApplicationScoring.objects.select_related("scorer")
+        .prefetch_related("scores__criterion")
+        .get(id=scoring.id)
+    )
     return _scoring_out(scoring)
 
 
@@ -415,9 +448,15 @@ def get_application_scoring(request, application_id: str, scoring_id: int):
     scoring = _get_scoring(application_id, scoring_id)
     if scoring.application_id != application.id:
         raise HttpError(404, "Scoring session not found")
-    if not (_has_perm(request, PERM_VIEW_ALL_SCORES) or scoring.scorer_id == request.auth.id):
+    if not (
+        _has_perm(request, PERM_VIEW_ALL_SCORES) or scoring.scorer_id == request.auth.id
+    ):
         raise HttpError(403, "You do not have permission to view this scoring.")
-    scoring = ApplicationScoring.objects.select_related("scorer").prefetch_related("scores__criterion").get(id=scoring.id)
+    scoring = (
+        ApplicationScoring.objects.select_related("scorer")
+        .prefetch_related("scores__criterion")
+        .get(id=scoring.id)
+    )
     return _scoring_out(scoring)
 
 
@@ -429,7 +468,9 @@ def get_application_scoring(request, application_id: str, scoring_id: int):
     operation_id="patchApplicationScoring",
 )
 @csrf_exempt
-def patch_application_scoring(request, application_id: str, scoring_id: int, payload: ApplicationScoringPatch):
+def patch_application_scoring(
+    request, application_id: str, scoring_id: int, payload: ApplicationScoringPatch
+):
     application = _get_application(application_id)
     scoring = _get_scoring(application_id, scoring_id)
     if scoring.application_id != application.id:
@@ -437,7 +478,9 @@ def patch_application_scoring(request, application_id: str, scoring_id: int, pay
 
     if scoring.status == ApplicationScoring.Status.CONFIRMED:
         raise HttpError(400, "Scoring is confirmed and cannot be changed")
-    if scoring.scorer_id != request.auth.id and not _has_perm(request, PERM_FINALIZE_SCORING):
+    if scoring.scorer_id != request.auth.id and not _has_perm(
+        request, PERM_FINALIZE_SCORING
+    ):
         raise HttpError(403, "You do not have permission to edit this scoring.")
 
     if payload.status is not None:
@@ -458,9 +501,13 @@ def patch_application_scoring(request, application_id: str, scoring_id: int, pay
             try:
                 criterion = ScoringCriterion.objects.get(id=item.criterion_id)
             except ScoringCriterion.DoesNotExist:
-                raise HttpError(400, f"Scoring criterion {item.criterion_id} not found.")
+                raise HttpError(
+                    400, f"Scoring criterion {item.criterion_id} not found."
+                )
             if not criterion.is_active:
-                raise HttpError(400, f"Scoring criterion '{criterion.name}' is inactive.")
+                raise HttpError(
+                    400, f"Scoring criterion '{criterion.name}' is inactive."
+                )
             _validate_score_value(criterion, item.score)
             validated.append((criterion, item))
         for criterion, item in validated:
@@ -471,7 +518,11 @@ def patch_application_scoring(request, application_id: str, scoring_id: int, pay
             )
 
     scoring.save()
-    scoring = ApplicationScoring.objects.select_related("scorer").prefetch_related("scores__criterion").get(id=scoring.id)
+    scoring = (
+        ApplicationScoring.objects.select_related("scorer")
+        .prefetch_related("scores__criterion")
+        .get(id=scoring.id)
+    )
     return _scoring_out(scoring)
 
 
@@ -549,6 +600,7 @@ def _adjudication_out(adj):
         final_score=adj.final_score,
         comment=adj.comment,
         status=adj.status,
+        scores=[_score_out(score) for score in adj.scores.all()],
         confirmed_at=adj.confirmed_at,
         created_at=adj.created_at,
         updated_at=adj.updated_at,
@@ -564,11 +616,18 @@ def _adjudication_out(adj):
 )
 def get_application_adjudication(request, application_id: str):
     application = _get_application(application_id)
-    if not (_has_perm(request, PERM_VIEW_ALL_SCORES) or user_can_adjudicate(request.auth, application)):
+    if not (
+        _has_perm(request, PERM_VIEW_ALL_SCORES)
+        or user_can_adjudicate(request.auth, application)
+    ):
         raise HttpError(403, "You do not have permission to view adjudication.")
 
     try:
-        adj = ApplicationAdjudication.objects.select_related("adjudicator").get(application=application)
+        adj = (
+            ApplicationAdjudication.objects.select_related("adjudicator")
+            .prefetch_related("scores__criterion")
+            .get(application=application)
+        )
     except ApplicationAdjudication.DoesNotExist:
         raise HttpError(404, "Adjudication not found")
     return _adjudication_out(adj)
@@ -578,11 +637,13 @@ def get_application_adjudication(request, application_id: str):
     "/applications/{application_id}/adjudication",
     response=ApplicationAdjudicationOut,
     tags=["Scoring"],
-    summary="Set adjudication final score",
+    summary="Set adjudication criterion scores",
     operation_id="updateApplicationAdjudication",
 )
 @csrf_exempt
-def update_application_adjudication(request, application_id: str, payload: ApplicationAdjudicationIn):
+def update_application_adjudication(
+    request, application_id: str, payload: ApplicationAdjudicationIn
+):
     _require_perm(request, PERM_ADJUDICATE_APPLICATION)
     application = _get_application(application_id)
     if not user_can_adjudicate(request.auth, application):
@@ -597,21 +658,51 @@ def update_application_adjudication(request, application_id: str, payload: Appli
     if adj.status == ApplicationAdjudication.Status.CONFIRMED:
         raise HttpError(400, "Adjudication is confirmed and cannot be changed.")
 
-    data = payload.model_dump(exclude_unset=True)
-    if "final_score" in data:
-        if data["final_score"] is not None and data["final_score"] < 0:
-            raise HttpError(400, "final_score must be greater than or equal to 0.")
-        adj.final_score = data["final_score"]
-    if "comment" in data and data["comment"] is not None:
-        adj.comment = data["comment"]
+    criterion_ids = [item.criterion_id for item in payload.scores]
+    if len(criterion_ids) != len(set(criterion_ids)):
+        raise HttpError(400, "Duplicate scoring criteria are not allowed.")
+
+    criteria = ScoringCriterion.objects.filter(id__in=criterion_ids)
+    criteria_by_id = {criterion.id: criterion for criterion in criteria}
+    if len(criteria_by_id) != len(set(criterion_ids)):
+        raise HttpError(400, "One or more scoring criteria were not found.")
+
+    validated_scores = []
+    final_score = Decimal("0")
+    for item in payload.scores:
+        criterion = criteria_by_id[item.criterion_id]
+        if not criterion.is_active:
+            raise HttpError(
+                400, f"Scoring criterion '{criterion.name}' is inactive."
+            )
+        _validate_score_value(criterion, item.score)
+        validated_scores.append((criterion, item))
+        final_score += item.score * criterion.weight
 
     try:
-        adj.full_clean()
-        adj.save()
+        with transaction.atomic():
+            if payload.comment is not None:
+                adj.comment = payload.comment
+            adj.final_score = final_score
+            adj.full_clean()
+            adj.save()
+            adj.scores.exclude(criterion_id__in=criterion_ids).delete()
+            for criterion, item in validated_scores:
+                score, _ = ApplicationAdjudicationScore.objects.update_or_create(
+                    adjudication=adj,
+                    criterion=criterion,
+                    defaults={"score": item.score, "comment": item.comment},
+                )
+                score.full_clean()
     except Exception as error:  # noqa: BLE001
         if hasattr(error, "message_dict") or hasattr(error, "messages"):
             _raise_validation_error(error)
         raise
+    adj = (
+        ApplicationAdjudication.objects.select_related("adjudicator")
+        .prefetch_related("scores__criterion")
+        .get(pk=adj.pk)
+    )
     return _adjudication_out(adj)
 
 
@@ -630,7 +721,9 @@ def confirm_application_adjudication(request, application_id: str):
         raise HttpError(403, "You are not assigned to adjudicate this application.")
 
     try:
-        adj = ApplicationAdjudication.objects.select_related("adjudicator").get(application=application)
+        adj = ApplicationAdjudication.objects.select_related("adjudicator").get(
+            application=application
+        )
     except ApplicationAdjudication.DoesNotExist:
         raise HttpError(404, "Adjudication not found")
 
@@ -638,8 +731,18 @@ def confirm_application_adjudication(request, application_id: str):
         raise HttpError(403, "You are not the assigned adjudicator.")
     if adj.status == ApplicationAdjudication.Status.CONFIRMED:
         raise HttpError(400, "Adjudication is already confirmed.")
-    if adj.final_score is None:
-        raise HttpError(400, "final_score must be set before confirmation.")
+    required_ids = set(
+        ScoringCriterion.objects.filter(is_active=True, is_required=True).values_list(
+            "id", flat=True
+        )
+    )
+    scored_ids = set(adj.scores.values_list("criterion_id", flat=True))
+    missing_ids = required_ids - scored_ids
+    if missing_ids:
+        missing = ScoringCriterion.objects.filter(id__in=missing_ids).values_list(
+            "name", flat=True
+        )
+        raise HttpError(400, "Missing required criteria: " + ", ".join(missing) + ".")
 
     with transaction.atomic():
         try:
@@ -647,5 +750,9 @@ def confirm_application_adjudication(request, application_id: str):
         except (ValueError, PermissionError) as error:
             raise HttpError(400, str(error))
     adj.refresh_from_db()
-    adj = ApplicationAdjudication.objects.select_related("adjudicator").get(application=application)
+    adj = (
+        ApplicationAdjudication.objects.select_related("adjudicator")
+        .prefetch_related("scores__criterion")
+        .get(application=application)
+    )
     return _adjudication_out(adj)

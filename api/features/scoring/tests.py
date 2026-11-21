@@ -163,6 +163,17 @@ class ScoringEndpointTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.json()["name"], "New")
 
+    def test_admin_can_partially_update_criterion_without_renaming(self):
+        self.client.force_login(self.admin)
+        response = self.client.patch(
+            f"/api/scoring-criteria/{self.criterion.id}",
+            data={"name": self.criterion.name, "weight": 3},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["name"], self.criterion.name)
+        self.assertEqual(response.json()["weight"], "3")
+
     def test_delete_criterion_with_scores_blocked(self):
         # create a score referencing the criterion
         from api.features.scoring.models import ApplicationScore
@@ -235,6 +246,47 @@ class ScoringEndpointTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_adjudicator_scores_each_criterion_and_final_score_is_weighted(self):
+        from api.features.tasks.models import Task, TaskAssignment
+
+        adjudicator = get_user_model().objects.create_user(username="adjudicator")
+        grant_permissions(adjudicator, "adjudicate_application")
+        Task.objects.filter(application=self.application).update(
+            status=Task.Status.COMPLETED
+        )
+        task = Task.objects.create(
+            application=self.application,
+            task_type=Task.Type.ADJUDICATION,
+            status=Task.Status.ASSIGNED,
+        )
+        TaskAssignment.objects.create(
+            task=task, employee=adjudicator, is_active=True
+        )
+        Application.objects.filter(pk=self.application.pk).update(
+            state="adjudication"
+        )
+
+        self.client.force_login(adjudicator)
+        response = self.client.put(
+            f"/api/applications/{self.application.id}/adjudication",
+            data={
+                "scores": [
+                    {
+                        "criterion_id": self.criterion.id,
+                        "score": 7,
+                        "comment": "Final category decision",
+                    }
+                ],
+                "comment": "Final adjudication",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["final_score"], "14.00")
+        self.assertEqual(len(response.json()["scores"]), 1)
+        self.assertEqual(response.json()["scores"][0]["score"], "7.00")
 
     def test_duplicate_criterion_in_batch_returns_400(self):
         self.client.force_login(self.scorer)

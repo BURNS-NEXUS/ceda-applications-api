@@ -139,8 +139,14 @@ def confirm_adjudication(application, adjudicator):
     )
     if adjudication.status == ApplicationAdjudication.Status.CONFIRMED:
         raise ValueError("Adjudication is already confirmed.")
-    if adjudication.final_score is None:
-        raise ValueError("final_score must be set before confirmation.")
+    required_ids = set(
+        ScoringCriterion.objects.filter(is_active=True, is_required=True).values_list(
+            "id", flat=True
+        )
+    )
+    scored_ids = set(adjudication.scores.values_list("criterion_id", flat=True))
+    if required_ids - scored_ids or adjudication.final_score is None:
+        raise ValueError("All required criterion scores must be set before confirmation.")
     if not task_services.user_can_adjudicate(adjudicator, application):
         raise PermissionError("User is not assigned as adjudicator.")
 

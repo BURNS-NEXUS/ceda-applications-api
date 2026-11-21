@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     ApplicationAdjudication,
+    ApplicationAdjudicationScore,
     ApplicationScore,
     ApplicationScoring,
     ScoringCriterion,
@@ -98,11 +99,33 @@ class ApplicationScoreAdmin(admin.ModelAdmin):
         return ()
 
 
+class ApplicationAdjudicationScoreInline(admin.TabularInline):
+    model = ApplicationAdjudicationScore
+    extra = 0
+    readonly_fields = ("criterion", "score", "comment", "created_at", "updated_at")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 class ApplicationAdjudicationAdmin(admin.ModelAdmin):
     list_display = ("id", "application", "adjudicator", "status", "final_score", "confirmed_at")
     list_filter = ("status", "confirmed_at")
     search_fields = ("application__id", "adjudicator__username")
-    readonly_fields = ("final_score", "comment", "confirmed_at", "created_at", "updated_at")
+    readonly_fields = (
+        "final_score",
+        "comment",
+        "confirmed_at",
+        "created_at",
+        "updated_at",
+    )
+    inlines = (ApplicationAdjudicationScoreInline,)
 
     def has_change_permission(self, request, obj=None):
         return False
