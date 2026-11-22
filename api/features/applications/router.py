@@ -89,6 +89,7 @@ def get_application(request, application_id: str):
                 for field in (
                     "id",
                     "project_title",
+                    "application_type",
                     "state",
                     "company_no",
                     "incorporation_date",

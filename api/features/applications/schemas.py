@@ -35,7 +35,8 @@ class ApplicationOut(Schema):
     email: str
     has_current_loan_with_other: bool
     has_past_loan_with_other: bool
-    application_type: Literal["individual", "company", "all"]
+    # Historical database rows may predate the current creation choices.
+    application_type: str
 
 
 class ApplicationIn(Schema):

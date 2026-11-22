@@ -73,6 +73,8 @@ role_permission_map = {
         adjudicate_application,
     ],
     "webmaster": [
+        "reporting.view_reports",
+        "api.view_auditlog",
         can_assign_supervisor,
         can_supervise_tasks,
         can_adjudicate_applications,
