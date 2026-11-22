@@ -5,6 +5,8 @@ from typing import Literal, Optional
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
+from django.http import FileResponse
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from ninja import File, Form, Router
@@ -105,15 +107,6 @@ def _get_document_type(request, document_type_id):
         raise HttpError(404, "Document type not found")
 
 
-def _absolute_file_url(request, document):
-    if not document.file:
-        return ""
-    try:
-        return request.build_absolute_uri(document.file.url)
-    except ValueError:
-        return ""
-
-
 def _document_payload(request, document):
     return {
         "id": document.id,
@@ -122,7 +115,7 @@ def _document_payload(request, document):
             "id": document.document_type_id,
             "name": document.document_type.name,
         },
-        "file": _absolute_file_url(request, document),
+        "file": reverse("api-1.0.0:download_document", args=[document.application_id, document.id]) if document.file else "",
         "file_description": document.file_description,
         "status": document.status,
         "reason": document.reason,
@@ -338,6 +331,29 @@ def get_document(request, application_id: str, document_id: str):
     )
     document = _get_document(request, application, document_id)
     return _document_payload(request, document)
+
+
+@router.get(
+    "/applications/{application_id}/documents/{document_id}/download",
+    tags=["Documents"],
+    summary="Download an application document",
+    openapi_extra={"responses": {200: {"description": "Document attachment", "content": {
+        "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+    }}}},
+)
+def download_document(request, application_id: str, document_id: str):
+    application = _get_application(
+        request, application_id, PERM_VIEW_ALL_APPLICATION_DOCUMENTS,
+        PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
+    )
+    document = _get_document(request, application, document_id)
+    try:
+        stream = document.file.open("rb")
+    except (ValueError, FileNotFoundError):
+        raise HttpError(404, "Document file unavailable")
+    response = FileResponse(stream, as_attachment=True, content_type="application/octet-stream")
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @router.post(
