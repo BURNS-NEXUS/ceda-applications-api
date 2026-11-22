@@ -61,6 +61,9 @@ class ScorerOut(Schema):
 
 
 class ApplicationScoringOut(Schema):
+    overall_comment: str
+    evidence_reference: str
+    no_conflict_declared: bool
     id: int
     application_id: str
     scorer: ScorerOut
@@ -73,6 +76,9 @@ class ApplicationScoringOut(Schema):
 
 
 class ApplicationScoringUpsert(Schema):
+    overall_comment: str | None = None
+    evidence_reference: str | None = None
+    no_conflict_declared: bool | None = None
     scores: list[ApplicationScoreIn]
 
 

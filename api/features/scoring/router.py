@@ -43,6 +43,12 @@ from .services import (
 
 router = Router()
 
+INNOVATION_CRITERIA = {
+    "Strategic Alignment", "Innovation & Originality", "Impact Potential",
+    "Feasibility & Viability", "Scalability & Sustainability", "Implementation Capacity",
+}
+
+
 PERM_MANAGE_CRITERIA = "scoring.manage_scoring_criteria"
 PERM_VIEW_CRITERIA = "scoring.view_scoringcriterion"
 PERM_SCORE_APPLICATION = "scoring.score_application"
@@ -106,6 +112,9 @@ def _score_out(score):
 
 def _scoring_out(scoring):
     return ApplicationScoringOut(
+        overall_comment=scoring.overall_comment,
+        evidence_reference=scoring.evidence_reference,
+        no_conflict_declared=scoring.no_conflict_declared,
         id=scoring.id,
         application_id=scoring.application_id,
         scorer=ScorerOut(id=scoring.scorer_id, username=scoring.scorer.username),
@@ -121,6 +130,8 @@ def _scoring_out(scoring):
 
 
 def _validate_score_value(criterion, value):
+    if criterion.name in INNOVATION_CRITERIA and (value != int(value) or not 1 <= value <= 5):
+        raise HttpError(400, "Innovation rubric scores must be whole numbers from 1 to 5.")
     if value < 0 or value > criterion.max_score:
         raise HttpError(
             400,
@@ -338,17 +349,22 @@ def get_my_scoring(request, application_id: str):
     operation_id="upsertMyScoring",
 )
 @csrf_exempt
+@transaction.atomic
 def upsert_my_scoring(request, application_id: str, payload: ApplicationScoringUpsert):
     _require_perm(request, PERM_SCORE_APPLICATION)
     application = _get_application(application_id)
 
-    scoring, _ = ApplicationScoring.objects.get_or_create(
+    scoring, _ = ApplicationScoring.objects.select_for_update().get_or_create(
         application=application, scorer=request.auth
     )
     if scoring.status == ApplicationScoring.Status.CONFIRMED:
         raise HttpError(400, "Scoring is confirmed and cannot be changed")
     if not user_can_evaluate(request.auth, application):
         raise HttpError(403, "You are not assigned to score this application.")
+    for field in ("overall_comment", "evidence_reference", "no_conflict_declared"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(scoring, field, value)
 
     # Validate batch.
     seen = set()
@@ -363,6 +379,8 @@ def upsert_my_scoring(request, application_id: str, payload: ApplicationScoringU
             raise HttpError(400, f"Scoring criterion {item.criterion_id} not found.")
         if not criterion.is_active:
             raise HttpError(400, f"Scoring criterion '{criterion.name}' is inactive.")
+        if criterion.name in INNOVATION_CRITERIA and not scoring.no_conflict_declared:
+            raise HttpError(400, "Declare that you have no conflict before scoring.")
         _validate_score_value(criterion, item.score)
         validated.append((criterion, item))
 
@@ -390,6 +408,7 @@ def upsert_my_scoring(request, application_id: str, payload: ApplicationScoringU
     operation_id="confirmMyScoring",
 )
 @csrf_exempt
+@transaction.atomic
 def confirm_my_scoring(request, application_id: str):
     _require_perm(request, PERM_SCORE_APPLICATION)
     application = _get_application(application_id)
@@ -398,7 +417,7 @@ def confirm_my_scoring(request, application_id: str):
 
     try:
         scoring = (
-            ApplicationScoring.objects.select_related("scorer")
+            ApplicationScoring.objects.select_for_update().select_related("scorer")
             .prefetch_related("scores__criterion")
             .get(application=application, scorer=request.auth)
         )
@@ -415,6 +434,15 @@ def confirm_my_scoring(request, application_id: str):
     missing = [c.name for c in required_criteria if c.id not in scored_ids]
     if missing:
         raise HttpError(400, "Missing required criteria: " + ", ".join(missing) + ".")
+
+    innovation_scores = scoring.scores.filter(criterion__name__in=INNOVATION_CRITERIA, criterion__is_active=True)
+    if innovation_scores.exists():
+        if not scoring.no_conflict_declared or not scoring.overall_comment.strip() or not scoring.evidence_reference.strip():
+            raise HttpError(400, "A conflict declaration, evidence reference and overall comment are required.")
+        for item in innovation_scores.select_related("criterion"):
+            _validate_score_value(item.criterion, item.score)
+            if not item.comment.strip():
+                raise HttpError(400, f"Add a comment for {item.criterion.name}.")
 
     with transaction.atomic():
         application_locked = Application.objects.select_for_update().get(

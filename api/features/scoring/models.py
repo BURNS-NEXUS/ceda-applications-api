@@ -85,6 +85,9 @@ class ApplicationScoring(models.Model):
         on_delete=models.CASCADE,
         related_name="scorings",
     )
+    overall_comment = models.TextField(blank=True)
+    evidence_reference = models.TextField(blank=True)
+    no_conflict_declared = models.BooleanField(default=False)
     scorer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

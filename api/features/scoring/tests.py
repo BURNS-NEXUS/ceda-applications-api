@@ -211,6 +211,29 @@ class ScoringEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["status"], "confirmed")
 
+    def test_innovation_rubric_review(self):
+        self.client.force_login(self.scorer)
+        self.criterion.name = "Strategic Alignment"
+        self.criterion.max_score = 5
+        self.criterion.save()
+        url = f"/api/applications/{self.application.id}/scorings/me"
+        item = {"criterion_id": self.criterion.id, "score": 4, "comment": "Aligned."}
+        body = {"scores": [item]}
+        def save():
+            return self.client.put(url, body, content_type="application/json")
+        self.assertEqual(save().status_code, 400)
+        body["no_conflict_declared"] = True
+        for invalid in (0, 2.5, 6):
+            item["score"] = invalid
+            self.assertEqual(save().status_code, 400)
+        item["score"] = 4
+        self.assertEqual(save().status_code, 200)
+        self.assertEqual(self.client.post(url + "/confirm").status_code, 400)
+        body.update(evidence_reference="Company profile, page 1", overall_comment="Reviewed.")
+        self.assertEqual(save().status_code, 200)
+        self.assertEqual(self.client.get(url).json()["overall_comment"], "Reviewed.")
+        self.assertEqual(self.client.post(url + "/confirm").status_code, 200)
+
     def test_submit_missing_required_returns_400(self):
         self.client.force_login(self.scorer)
         # create an empty draft session first
