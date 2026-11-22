@@ -9,7 +9,7 @@ router = Router()
 
 @router.get("/", response=AuditLogListOut)
 def list_audit_logs(request, filters: Query[AuditLogFilters]):
-    if not request.auth.groups.filter(name="admin").exists():
+    if not request.auth.has_perm("api.view_auditlog") and not request.auth.groups.filter(name="admin").exists():
         raise HttpError(403, "You do not have permission to view audit logs")
     logs = AuditLog.objects.all()
     total = logs.count()
