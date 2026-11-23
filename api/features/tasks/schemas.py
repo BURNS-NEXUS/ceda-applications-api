@@ -72,6 +72,13 @@ class TaskPoolOut(Schema):
     data: list[TaskPoolItemOut]
 
 
+class AssignableEmployeeOut(Schema):
+    user_id: str
+    username: str
+    email: str
+    expertise_sectors: list[str]
+
+
 class ClaimTaskIn(Schema):
     reason: str = ""
 

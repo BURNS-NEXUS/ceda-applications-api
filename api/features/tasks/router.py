@@ -11,6 +11,7 @@ from .expertise import SECTOR_LABELS, matches_expertise, sector_for_application
 from .models import ConflictDeclaration, Task, TaskAssignment
 from .permissions import can_assign_supervisor, can_supervise_tasks
 from .schemas import (
+    AssignableEmployeeOut,
     ClaimTaskIn,
     ConflictDeclarationIn,
     ConflictDeclarationOut,
@@ -175,6 +176,23 @@ def declare_conflict(request, task_id: str, payload: ConflictDeclarationIn):
             task.status = Task.Status.PENDING
             task.save(update_fields=["status", "updated_at"])
     return 201, declaration
+
+
+@router.get("/assignable", response=list[AssignableEmployeeOut])
+def list_assignable_employees(request, task_type: str):
+    """Eligible, non-absent employees for a task type, for the assignment UI."""
+    _require_permission(request, can_supervise_tasks)
+    if task_type not in Task.Type.values:
+        raise HttpError(422, "Unknown task type")
+    return [
+        AssignableEmployeeOut(
+            user_id=user.id,
+            username=user.username,
+            email=user.email,
+            expertise_sectors=user.expertise_sectors or [],
+        )
+        for user in available_employees(task_type)
+    ]
 
 
 @router.get("/pool", response=TaskPoolOut)

@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.utils import timezone
 
@@ -63,3 +63,45 @@ class AuditLogListTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 3)
         self.assertTrue(all(entry["actor_id"] is None for entry in response.json()["data"]))
+
+    def test_adjudicator_sees_only_decision_related_logs(self):
+        permission = Permission.objects.get(
+            content_type__app_label="scoring", codename="adjudicate_application"
+        )
+        adjudicator = get_user_model().objects.create_user(
+            username="audit-adjudicator"
+        )
+        adjudicator.user_permissions.add(permission)
+        AuditLog.objects.create(
+            id="adj-1",
+            actor=self.user,
+            action="Confirmed adjudication for application application-0",
+            resource_type="ApplicationAdjudication",
+            resource_id="adjudication-1",
+            details={"application_id": "application-0", "final_score": "24.00"},
+        )
+        AuditLog.objects.create(
+            id="unrelated-1",
+            actor=self.user,
+            action="Uploaded a document",
+            resource_type="ApplicationDocument",
+            resource_id="document-1",
+            details={},
+        )
+
+        self.client.force_login(adjudicator)
+        response = self.client.get("/api/audit-logs/")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 4)
+        self.assertEqual(
+            {entry["resource_type"] for entry in body["data"]},
+            {"application", "ApplicationAdjudication"},
+        )
+        self.assertTrue(
+            all(entry["actor_username"] == self.user.username for entry in body["data"])
+        )
+        self.assertNotIn(
+            "unrelated-1", {entry["id"] for entry in body["data"]}
+        )

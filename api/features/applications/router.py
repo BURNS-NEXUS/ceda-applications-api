@@ -252,7 +252,10 @@ def verify_application(request, application_id: str):
             task_type=Task.Type.VERIFICATION,
             status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
         ).first()
-        if not is_assigned(task, request.auth):
+        is_admin = request.auth.is_superuser or request.auth.groups.filter(
+            name="admin"
+        ).exists()
+        if not (is_assigned(task, request.auth) or is_admin):
             raise HttpError(403, "You are not assigned to verify this application")
         not_accepted = application.documents.exclude(
             status=ApplicationDocument.Status.ACCEPTED
@@ -327,9 +330,23 @@ def resubmit_application(request, application_id: str):
 )
 @csrf_exempt
 def request_feedback(request, application_id: str, payload: FeedbackApplicationIn):
-    """Reject an application by requesting feedback from applicant"""
+    """Send an application back to the applicant for clarification."""
     try:
-        application = Application.objects.get(id=application_id, owner=request.auth)
+        application = Application.objects.get(id=application_id)
+        is_admin = request.auth.is_superuser or request.auth.groups.filter(
+            name="admin"
+        ).exists()
+        task = Task.objects.filter(
+            application=application,
+            task_type=Task.Type.VERIFICATION,
+            status__in=[Task.Status.PENDING, Task.Status.ASSIGNED],
+        ).first()
+        if not (
+            application.owner_id == request.auth.id
+            or is_admin
+            or is_assigned(task, request.auth)
+        ):
+            raise HttpError(403, "You are not allowed to request feedback for this application")
         if not fsm.can_proceed(application.request_feedback):
             raise PermissionDenied
         clarification = Clarification.objects.create(

@@ -13,6 +13,7 @@ class AuditLogFilters(Schema):
 class AuditLogOut(Schema):
     id: str
     actor_id: str | None
+    actor_username: str | None = None
     action: str
     resource_type: str
     resource_id: str
