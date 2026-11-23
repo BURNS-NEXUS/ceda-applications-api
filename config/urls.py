@@ -16,11 +16,15 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.contrib.staticfiles.views import serve as serve_static
+from django.urls import path, re_path
 
 from api.api import api
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api.urls),
+    # Vercel's Python runtime does not serve static files. Serve them from the
+    # installed Django apps so the admin UI is styled in production too.
+    re_path(r"^static/(?P<path>.*)$", serve_static, {"insecure": True}),
 ]
