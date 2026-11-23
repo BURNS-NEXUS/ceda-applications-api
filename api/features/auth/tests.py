@@ -58,3 +58,62 @@ class MyPermissionsTests(TestCase):
         self.assertTrue(payload["is_superuser"])
         self.assertIn("api.manage_document_types", payload["permissions"])
         self.assertIn("api.review_application_document", payload["permissions"])
+
+
+class UpdateMeTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.user = User.objects.create_user(
+            username="profile@example.com",
+            email="profile@example.com",
+            first_name="Old",
+            last_name="Name",
+        )
+        cls.other = User.objects.create_user(
+            username="taken@example.com", email="taken@example.com"
+        )
+
+    def test_requires_authentication(self):
+        response = self.client.patch(
+            "/api/me", data={"first_name": "New"}, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_updates_name_and_email(self):
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/me",
+            data={
+                "first_name": "New",
+                "last_name": "Person",
+                "email": "new@example.com",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "New")
+        self.assertEqual(self.user.last_name, "Person")
+        self.assertEqual(self.user.email, "new@example.com")
+        self.assertEqual(self.user.username, "new@example.com")
+        self.assertEqual(response.json()["first_name"], "New")
+
+    def test_rejects_duplicate_email(self):
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/me",
+            data={"email": "taken@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 409)
+
+    def test_partial_update_keeps_other_fields(self):
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/me", data={"first_name": "Only"}, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Only")
+        self.assertEqual(self.user.email, "profile@example.com")
