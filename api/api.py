@@ -2,6 +2,7 @@ from ninja import NinjaAPI
 from ninja.security import django_auth
 
 from .features.absentees.router import router as absentees_router
+from .features.applications.programmes import router as programmes_router
 from .features.applications.router import router as applications_router
 from .features.audit_logs.router import router as audit_logs_router
 from .features.auth.me_router import router as auth_me_router
@@ -22,6 +23,7 @@ from .features.reporting.router import router as reporting_router
 api = NinjaAPI(auth=django_auth)
 
 # Register feature routers
+api.add_router("/programmes", programmes_router, tags=["Programme calls"])
 api.add_router("/auth", auth_router, tags=["Auth"])
 api.add_router("/me", auth_me_router, tags=["Auth"])
 api.add_router("/applications", applications_router, tags=["Applications"])

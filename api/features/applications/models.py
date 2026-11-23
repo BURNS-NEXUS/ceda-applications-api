@@ -20,10 +20,33 @@ def generate_cuid():
     return _cuid.generate()
 
 
+class ProgrammeCall(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    eligibility = models.TextField()
+    required_documents = models.TextField()
+    opens_on = models.DateField()
+    closes_on = models.DateField()
+    published = models.BooleanField(default=False)
+    has_brief = models.BooleanField(default=False)
+    brief = models.BinaryField(default=bytes)
+
+    @property
+    def status(self):
+        from django.utils.timezone import localdate
+        today = localdate()
+        if not self.published:
+            return "draft"
+        if today < self.opens_on:
+            return "upcoming"
+        return "closed" if today > self.closes_on else "open"
+
+
 class Application(fsm.FSMModelMixin, models.Model):
     id = models.CharField(
         primary_key=True, max_length=32, default=generate_cuid, editable=False
     )
+    programme_call = models.ForeignKey(ProgrammeCall, null=True, blank=True, on_delete=models.PROTECT, related_name="applications")
     state = fsm.FSMField(default="draft", protected=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="applications"
@@ -182,3 +205,4 @@ class Application(fsm.FSMModelMixin, models.Model):
         audit_log.save()
 
     # endregion
+

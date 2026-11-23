@@ -13,7 +13,7 @@ from api.features.tasks.models import Task
 from api.features.tasks.services import ensure_task_for_application, is_assigned
 
 from .filters import ApplicationFilters
-from .models import Application
+from .models import Application, ProgrammeCall
 from .permissions import (
     can_submit_applications,
     can_verify_applications,
@@ -51,6 +51,10 @@ def list_applications(request, filters: Query[ApplicationFilters]):
 @csrf_exempt
 def create_application(request, payload: ApplicationIn):
     """Create a new application."""
+    if payload.programme_call_id is not None:
+        call = ProgrammeCall.objects.filter(pk=payload.programme_call_id, published=True).first()
+        if call is None or call.status != "open":
+            raise HttpError(409, "This call is not accepting applications.")
     application = Application.objects.create(owner=request.auth, **payload.dict())
     return application
 
@@ -88,6 +92,7 @@ def get_application(request, application_id: str):
                 field: getattr(application, field)
                 for field in (
                     "id",
+                    "programme_call_id",
                     "project_title",
                     "application_type",
                     "state",
@@ -194,6 +199,8 @@ def submit_application(request, application_id: str):
     """Submit an application from draft."""
     try:
         application = Application.objects.get(id=application_id, owner=request.auth)
+        if application.programme_call_id and application.programme_call.status != "open":
+            raise HttpError(409, "The application period for this call is closed.")
         application.submission_count += 1
         if not fsm.can_proceed(application.submit):
             raise PermissionDenied

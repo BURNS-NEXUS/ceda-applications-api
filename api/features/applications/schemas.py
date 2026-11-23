@@ -22,6 +22,7 @@ from api.features.references.schemas import (
 
 
 class ApplicationOut(Schema):
+    programme_call_id: int | None = None
     id: str
     project_title: str
     state: str
@@ -40,6 +41,7 @@ class ApplicationOut(Schema):
 
 
 class ApplicationIn(Schema):
+    programme_call_id: int | None = None
     project_title: str
     company_no: str
     incorporation_date: date
