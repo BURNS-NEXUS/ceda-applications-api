@@ -42,6 +42,9 @@ class User(AbstractUser):
     id = models.CharField(
         primary_key=True, max_length=32, default=generate_cuid, editable=False
     )
+    # Sector slugs this reviewer is comfortable assessing, e.g. ["energy", "agriculture"].
+    # Empty means the reviewer is happy to assess any sector.
+    expertise_sectors = models.JSONField(default=list, blank=True)
 
 
 __all__ = [

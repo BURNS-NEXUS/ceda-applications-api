@@ -51,3 +51,40 @@ class SupervisorOut(Schema):
 
 class SupervisorIn(Schema):
     user_id: str
+
+
+class TaskPoolItemOut(Schema):
+    id: str
+    application_id: str
+    project_title: str
+    company_no: str
+    business_nature: str
+    sector: str
+    sector_label: str
+    expertise_match: bool
+    required_assignees: int
+    assigned_count: int
+    created_at: datetime
+
+
+class TaskPoolOut(Schema):
+    total: int
+    data: list[TaskPoolItemOut]
+
+
+class ClaimTaskIn(Schema):
+    reason: str = ""
+
+
+class DeclineTaskIn(Schema):
+    reason: str = Field(min_length=10)
+
+
+class ExpertiseIn(Schema):
+    sectors: list[str]
+
+
+class ExpertiseOut(Schema):
+    user_id: str
+    username: str
+    sectors: list[str]

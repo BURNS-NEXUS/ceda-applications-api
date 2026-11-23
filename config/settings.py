@@ -146,3 +146,29 @@ MAILERS = {
 CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = ["https://*.bawetsi.com"]
+if os.getenv("VERCEL") == "1":
+    from urllib.parse import unquote, urlsplit
+
+    DEBUG = False
+    SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+    ALLOWED_HOSTS = [host for host in (
+        os.getenv("VERCEL_URL"), os.getenv("VERCEL_BRANCH_URL"),
+        os.getenv("VERCEL_PROJECT_PRODUCTION_URL"), "ceda-django-api.vercel.app",
+    ) if host]
+    db = urlsplit(os.environ["DATABASE_URL"])
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": unquote(db.path.lstrip("/")), "USER": unquote(db.username),
+        "PASSWORD": unquote(db.password), "HOST": db.hostname, "PORT": db.port or 5432,
+        "OPTIONS": {"sslmode": "require"}, "DISABLE_SERVER_SIDE_CURSORS": True,
+    }
+    CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    CORS_ALLOW_ALL_ORIGINS = False
+    CSRF_TRUSTED_ORIGINS = ["https://" + host for host in ALLOWED_HOSTS]
+    CSRF_TRUSTED_ORIGINS += os.getenv("DJANGO_PORTAL_ORIGINS", "").split()
+    STORAGES = {
+        "default": {"BACKEND": "config.storage.PrivateDocumentStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+    MAX_DOCUMENT_FILE_SIZE = 4 * 1024 * 1024
