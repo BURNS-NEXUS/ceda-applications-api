@@ -5,6 +5,7 @@ from django.utils import timezone
 from api.features.absentees.models import Absentee
 from api.features.single_types.models import SystemSettings
 
+from .expertise import matches_expertise, sector_for_application
 from .models import Task, TaskAssignment, TaskRoundRobinState
 
 VERIFICATION_ROLE = "verification"
@@ -175,17 +176,34 @@ def assign_task(task):
     state, _ = TaskRoundRobinState.objects.select_for_update().get_or_create(
         task_type=task.task_type
     )
-    start = 0
-    if state.last_employee_id:
-        for index, candidate in enumerate(candidates):
-            if candidate == state.last_employee_id:
-                start = (index + 1) % len(candidates)
-                break
+    sector = (
+        sector_for_application(task.application)
+        if task.task_type == Task.Type.EVALUATION
+        else None
+    )
 
-    selected = [
-        candidates[(start + offset) % len(candidates)]
-        for offset in range(min(slots, len(candidates)))
-    ]
+    # Expertise matches are considered first; the round-robin cursor spreads
+    # work fairly within each tier (and across everyone for non-evaluation tasks).
+    last_id = state.last_employee_id_id
+
+    def ordered(group):
+        if not group:
+            return []
+        start = 0
+        if last_id:
+            for index, candidate in enumerate(group):
+                if candidate.pk == last_id:
+                    start = (index + 1) % len(group)
+                    break
+        return [group[(start + offset) % len(group)] for offset in range(len(group))]
+
+    if sector is None:
+        ranked = ordered(candidates)
+    else:
+        ranked = ordered([c for c in candidates if matches_expertise(c, sector)])
+        ranked += ordered([c for c in candidates if not matches_expertise(c, sector)])
+
+    selected = ranked[:slots]
     TaskAssignment.objects.bulk_create(
         [TaskAssignment(task=task, employee=employee) for employee in selected]
     )

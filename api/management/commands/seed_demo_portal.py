@@ -7,6 +7,7 @@ from django.utils.timezone import localdate
 
 from api.features.applications.models import Application, ProgrammeCall
 from api.features.documents.models import DocumentType
+from api.features.tasks.expertise import SECTOR_LABELS
 from api.features.personal_details.models import (
     Address,
     Contact,
@@ -15,6 +16,13 @@ from api.features.personal_details.models import (
 )
 
 CUSTOMER = "customer@ceda.local"
+
+EVALUATOR_EXPERTISE = {
+    "evaluator@ceda.local": ["energy", "agriculture"],
+    "evaluator1@ceda.local": ["energy", "logistics"],
+    "evaluator2@ceda.local": ["health", "fintech"],
+    "evaluator3@ceda.local": ["ict", "manufacturing"],
+}
 
 OPEN_CALL_TITLE = "CEDA Innovation Growth Fund — 2026 Round 1"
 DRAFT_CALL_TITLE = "Youth Agri-Technology Challenge 2026"
@@ -129,6 +137,12 @@ class Command(BaseCommand):
 
         for item in DOCUMENT_TYPES:
             DocumentType.objects.get_or_create(name=item["name"], defaults=item)
+
+        users = get_user_model().objects
+        for username, sectors in EVALUATOR_EXPERTISE.items():
+            users.filter(username=username).update(
+                expertise_sectors=[s for s in sectors if s in SECTOR_LABELS]
+            )
 
         created = 0
         for item in APPLICATIONS:

@@ -1,3 +1,13 @@
+## Decision tree (evolution)
+
+Design decisions are recorded as they are made in the frontend repository's
+README under **"Decision tree (evolution)"** — that is the system-wide log and
+covers both repositories. Backend-specific entries currently include: the
+Vercel-hosted Django API as the single source of truth, idempotent demo seeding
+(`seed_demo_portal`), step-aware date validation on the wizard, and the
+**hybrid evaluator assignment** model (expertise-ranked auto-assignment plus a
+claim/decline pool). Read that section before changing workflow behaviour.
+
 ## Prerequisites
 - Windows,Mac OS or linux, preferably linux or MacOS
 - Python ~3.13.15 
