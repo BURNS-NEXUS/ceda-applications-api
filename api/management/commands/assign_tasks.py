@@ -6,7 +6,7 @@ from api.features.tasks.services import ensure_task_for_application, retry_pendi
 
 
 class Command(BaseCommand):
-    help = "Create and assign pending verification and evaluation tasks daily."
+    help = "Create and assign verification/adjudication tasks; leave evaluation tasks in the claim pool."
 
     def handle(self, *args, **options):
         assigned_before = TaskAssignment.objects.count()
