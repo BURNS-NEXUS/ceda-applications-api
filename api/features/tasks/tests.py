@@ -309,6 +309,21 @@ class TaskEndpointTests(TestCase):
         )
         self.assertEqual(response.json()["total"], 0)
 
+    def test_completed_task_still_grants_application_read_access(self):
+        self.task.status = Task.Status.COMPLETED
+        self.task.save(update_fields=["status"])
+
+        response = self.client.get(f"/api/applications/{self.application.id}")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["id"], self.application.id)
+
+        response = self.client.get(
+            "/api/applications/",
+            {"assigned_to_me": "true"},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["total"], 1)
+
     def test_unassigned_user_cannot_read_application_detail(self):
         self.client.force_login(self.other_employee)
 

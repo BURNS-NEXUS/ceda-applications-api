@@ -46,7 +46,7 @@ class ApplicationFilters(Schema):
             applications = applications.filter(
                 tasks__assignments__employee=user,
                 tasks__assignments__is_active=True,
-                tasks__status__in=["pending", "assigned"],
+                tasks__status__in=["pending", "assigned", "completed"],
             )
         if self.search is not None:
             applications = applications.filter(

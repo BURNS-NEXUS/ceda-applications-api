@@ -82,7 +82,9 @@ def get_application(request, application_id: str):
         is_assigned = application.filter(
             tasks__assignments__employee=request.auth,
             tasks__assignments__is_active=True,
-            tasks__status__in=["pending", "assigned"],
+            # Reviewers keep read access to decided cases for the adjudicator's
+            # comparison and audit-history screens after the task completes.
+            tasks__status__in=["pending", "assigned", "completed"],
         ).exists()
         if not (is_owner or can_view_all or is_assigned):
             raise Application.DoesNotExist
