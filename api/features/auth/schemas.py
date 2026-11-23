@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ninja import Field, Schema
 
 
@@ -18,6 +20,12 @@ class UserOut(Schema):
     email: str
     first_name: str
     last_name: str
+
+
+class UserPatchIn(Schema):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = Field(None, format="email")
 
 
 class UserPermissionsOut(Schema):

@@ -1,6 +1,10 @@
+from django.contrib.auth import get_user_model
+from django.views.decorators.csrf import csrf_exempt
 from ninja import Router
+from ninja.errors import HttpError
 
-from .schemas import UserPermissionsOut
+from .helpers import check_is_email
+from .schemas import UserOut, UserPatchIn, UserPermissionsOut
 
 router = Router()
 
@@ -25,3 +29,30 @@ def get_my_permissions(request):
         "is_superuser": user.is_superuser,
         "permissions": sorted(user.get_all_permissions()),
     }
+
+
+@router.patch("", response=UserOut)
+@csrf_exempt
+def update_me(request, payload: UserPatchIn):
+    """Update the current user's display name and email."""
+    user = request.auth
+    if payload.email is not None:
+        email = payload.email.strip()
+        if not check_is_email(email):
+            raise HttpError(422, "Invalid email format")
+        if (
+            get_user_model()
+            .objects.filter(username__iexact=email)
+            .exclude(pk=user.pk)
+            .exists()
+        ):
+            raise HttpError(409, "Email already in use")
+        # Registration uses the email as the login username; keep them in sync.
+        user.email = email
+        user.username = email
+    if payload.first_name is not None:
+        user.first_name = payload.first_name.strip()
+    if payload.last_name is not None:
+        user.last_name = payload.last_name.strip()
+    user.save(update_fields=["username", "email", "first_name", "last_name"])
+    return user
