@@ -108,6 +108,12 @@ def ensure_task_for_application(application):
             application=application,
             task_type=task_type,
         )
+
+    # Evaluation work is claimed from a shared pool by every evaluator
+    # (decision #13). Leave it pending with no assignees; expertise only
+    # ranks/filters the pool. Verification and adjudication still auto-assign.
+    if task_type == Task.Type.EVALUATION:
+        return task
     return assign_task(task)
 
 
@@ -226,6 +232,10 @@ def retry_pending_tasks():
         .filter(status__in=[Task.Status.PENDING, Task.Status.ASSIGNED])
         .select_related("application")
     ):
+        # Evaluation tasks must stay claimable in the pool; a retry must not
+        # silently fill their slots the way the old auto-assignment did.
+        if task.task_type == Task.Type.EVALUATION:
+            continue
         before = task.assignments.filter(is_active=True).count()
         assign_task(task)
         after = task.assignments.filter(is_active=True).count()

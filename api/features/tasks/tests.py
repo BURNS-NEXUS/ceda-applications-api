@@ -176,7 +176,7 @@ class TaskAssignmentTests(TestCase):
             self.verifiers[0],
         )
 
-    def test_evaluation_respects_configured_number_of_evaluators(self):
+    def test_evaluation_task_starts_unassigned_in_the_claim_pool(self):
         settings = SystemSettings.load()
         settings.evaluators_per_application = 2
         settings.save()
@@ -188,8 +188,21 @@ class TaskAssignmentTests(TestCase):
         task = ensure_task_for_application(application)
 
         self.assertEqual(task.task_type, Task.Type.EVALUATION)
-        self.assertEqual(task.assignments.filter(is_active=True).count(), 2)
-        self.assertEqual(task.status, Task.Status.ASSIGNED)
+        self.assertEqual(task.status, Task.Status.PENDING)
+        self.assertEqual(task.assignments.filter(is_active=True).count(), 0)
+
+    def test_retry_does_not_auto_assign_evaluation_tasks(self):
+        application = create_application(self.owner, "retry-pool")
+        Task.objects.filter(application=application).update(status=Task.Status.COMPLETED)
+        Application.objects.filter(pk=application.pk).update(state="evaluation")
+        application.refresh_from_db()
+        task = ensure_task_for_application(application)
+
+        call_command("assign_tasks")
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.PENDING)
+        self.assertEqual(task.assignments.filter(is_active=True).count(), 0)
 
     def test_daily_command_creates_missing_stage_tasks(self):
         application = create_application(self.owner, "command")
