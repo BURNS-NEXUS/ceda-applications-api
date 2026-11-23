@@ -15,3 +15,5 @@ wheels/
 
 # Uploaded media
 media/
+.vercel
+.env*
