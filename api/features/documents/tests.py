@@ -138,6 +138,22 @@ class ApplicationDocumentTests(TestCase):
             f"{document_id}/decision"
         )
 
+    def test_assigned_evaluator_reads_until_assignment_ends(self):
+        payload = self._upload().json()
+        Application.objects.filter(pk=self.application.id).update(state="evaluation")
+        task = Task.objects.create(application=self.application, task_type=Task.Type.EVALUATION,
+                                   status=Task.Status.ASSIGNED)
+        assignment = TaskAssignment.objects.create(task=task, employee=self.other_user)
+        self.client.force_login(self.other_user)
+        base = f"/api/applications/{self.application.id}/documents"
+        paths = [base, base + "/required", base + "/" + payload["id"], payload["file"]]
+        for path in paths:
+            self.assertEqual(self.client.get(path).status_code, 200)
+        assignment.is_active = False
+        assignment.save()
+        for path in paths:
+            self.assertEqual(self.client.get(path).status_code, 404)
+
     def test_upload_valid_document_and_fetch_it(self):
         response = self._upload()
         self.assertEqual(response.status_code, 201, response.content)

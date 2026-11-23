@@ -16,7 +16,7 @@ from ninja.files import UploadedFile
 ApplicationType = Literal["individual", "company", "all"]
 from api.features.applications.models import Application
 from api.features.tasks.models import Task
-from api.features.tasks.services import is_assigned
+from api.features.tasks.services import is_assigned, task_type_for_application_state
 
 from .models import ApplicationDocument, DocumentType
 from .schemas import (
@@ -82,6 +82,23 @@ def _get_application(request, application_id, *permissions):
         return applications.get(id=application_id)
     except Application.DoesNotExist:
         raise HttpError(404, "Application not found")
+
+
+def _readable_application(request, application_id):
+    application = Application.objects.filter(pk=application_id).first()
+    if application is not None:
+        if application.owner_id == request.auth.pk or any(
+            _has_perm(request, perm) for perm in (
+                PERM_VIEW_ALL_APPLICATION_DOCUMENTS, PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
+            )
+        ):
+            return application
+        task_type = task_type_for_application_state(application.state)
+        tasks = Task.objects.filter(application=application, task_type=task_type,
+                                    status__in=[Task.Status.PENDING, Task.Status.ASSIGNED])
+        if any(is_assigned(task, request.auth) for task in tasks):
+            return application
+    raise HttpError(404, "Application not found")
 
 
 def _get_document(request, application, document_id):
@@ -283,12 +300,7 @@ def delete_document_type(request, document_type_id: str):
 )
 def list_documents(request, application_id: str):
     """List every document uploaded for an application."""
-    application = _get_application(
-        request,
-        application_id,
-        PERM_VIEW_ALL_APPLICATION_DOCUMENTS,
-        PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
-    )
+    application = _readable_application(request, application_id)
     documents = application.documents.select_related(
         "document_type", "rejected_by"
     ).order_by("-created_at", "-id")
@@ -306,12 +318,7 @@ def list_documents(request, application_id: str):
 )
 def list_required_documents(request, application_id: str):
     """Return all active document types and required-document upload progress."""
-    application = _get_application(
-        request,
-        application_id,
-        PERM_VIEW_ALL_APPLICATION_DOCUMENTS,
-        PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
-    )
+    application = _readable_application(request, application_id)
     return document_upload_progress(application)
 
 
@@ -323,12 +330,7 @@ def list_required_documents(request, application_id: str):
 )
 def get_document(request, application_id: str, document_id: str):
     """Retrieve a single document belonging to the application."""
-    application = _get_application(
-        request,
-        application_id,
-        PERM_VIEW_ALL_APPLICATION_DOCUMENTS,
-        PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
-    )
+    application = _readable_application(request, application_id)
     document = _get_document(request, application, document_id)
     return _document_payload(request, document)
 
@@ -342,10 +344,7 @@ def get_document(request, application_id: str, document_id: str):
     }}}},
 )
 def download_document(request, application_id: str, document_id: str):
-    application = _get_application(
-        request, application_id, PERM_VIEW_ALL_APPLICATION_DOCUMENTS,
-        PERM_MANAGE_ALL_APPLICATION_DOCUMENTS,
-    )
+    application = _readable_application(request, application_id)
     document = _get_document(request, application, document_id)
     try:
         stream = document.file.open("rb")
